@@ -77,19 +77,20 @@ def _build_snapshot() -> dict[str, Any]:
     return {
         "schema_version": 1,
         "metadata": {
-            "pyopenjtalk_dict": _pyopenjtalk_dict_snapshot_version(),
+            "pyopenjtalk": _pyopenjtalk_provider_version(),
             "tokenizer": JP_BERT_MODEL_ID,
         },
         "cases": [_build_case_snapshot(case) for case in CASES],
     }
 
 
-def _pyopenjtalk_dict_snapshot_version() -> str:
-    try:
-        return version("pyopenjtalk-dict")
-    except PackageNotFoundError:
-        snapshot = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
-        return str(snapshot["metadata"]["pyopenjtalk_dict"])
+def _pyopenjtalk_provider_version() -> str:
+    for package in ("pyopenjtalk-plus", "pyopenjtalk-dict"):
+        try:
+            return f"{package} {version(package)}"
+        except PackageNotFoundError:
+            continue
+    return "unknown"
 
 
 def _build_case_snapshot(case: dict[str, str]) -> dict[str, Any]:

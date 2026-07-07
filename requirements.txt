@@ -10,7 +10,7 @@ librosa==0.9.2
 loguru
 nltk<=3.8.1
 num2words
-numpy<2
+numpy>=1.26,<3
 onnx
 onnxconverter-common
 onnxruntime
@@ -22,7 +22,7 @@ psutil
 punctuators
 pyannote.audio>=3.1.0
 pyloudnorm
-pyopenjtalk-dict
+pyopenjtalk-plus
 pypinyin
 pyworld-prebuilt
 stable_ts
