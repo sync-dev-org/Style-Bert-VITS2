@@ -511,7 +511,7 @@ __CROSS_MARK_AS_BATSU_PATTERN = re.compile(r"[×✖⨯❌][\ufe0e\ufe0f]?")
 # __convert_english_to_katakana() で使う正規表現パターン
 __ENGLISH_WORD_PATTERN = re.compile(r"[a-zA-Z0-9]")
 __ENGLISH_WORD_WITH_NUMBER_PATTERN = re.compile(
-    r"([a-zA-Z]+)[\s-]?([1-9]|1[01])(?!\d|\.\d)"  # 12 以降は英語読みしない
+    r"([a-zA-Z]+)[\s-]?([1-9]|1[01])(?!\d|\.\d|-\d)"  # 12 以降は英語読みしない
 )
 __ALPHABET_PATTERN = re.compile(r"[a-zA-Z]")
 
@@ -1219,6 +1219,21 @@ def __convert_english_to_katakana(text: str) -> str:
         if word_without_numbers in __UNIT_MAP:
             return word
 
+        alpha_with_hyphenated_numbers_match = re.fullmatch(
+            r"([a-zA-Z]+)(\d+(?:-\d+)+)",
+            word,
+        )
+        if alpha_with_hyphenated_numbers_match:
+            base_word = alpha_with_hyphenated_numbers_match.group(1)
+            numeric_tail = alpha_with_hyphenated_numbers_match.group(2)
+            converted_base_word = process_english_word(
+                base_word,
+                enable_romaji_c2k=enable_romaji_c2k,
+            )
+            if converted_base_word == base_word:
+                return word
+            return f"{converted_base_word}{numeric_tail}"
+
         # 英単語の末尾に 11 以下の数字 (1.0 のような小数表記を除く) がつく場合の処理 (例: iPhone 11, Pixel8)
         number_match = __ENGLISH_WORD_WITH_NUMBER_PATTERN.match(word)
         if number_match:
@@ -1625,6 +1640,21 @@ def __convert_english_to_katakana(text: str) -> str:
                     current_word += int_part
                     i = j  # 数字の最後の位置まで進める
                     continue
+
+        if char == "-":
+            is_english_hyphen = (
+                bool(current_word)
+                and __ALPHABET_PATTERN.search(current_word) is not None
+            ) or (
+                __ALPHABET_PATTERN.match(prev_char) is not None
+                and __ALPHABET_PATTERN.match(next_char) is not None
+            )
+            if is_english_hyphen is False and current_word == "":
+                words.append(char)
+                is_english_converted.append(False)
+                prev_char = char
+                i += 1
+                continue
 
         # 英数字または特定の記号であれば current_word に追加
         if __ENGLISH_WORD_PATTERN.match(char) is not None or char in "-&+'":

@@ -507,6 +507,7 @@ def test_normalize_text_symbols():
     assert normalize_text("10^^3") == "10'3"
     assert normalize_text("×") == "バツ"
     assert normalize_text("答えは×です") == "答えはバツです"
+    assert normalize_text("日本語-テスト") == "日本語-テスト"
     assert normalize_text("1_2") == "1'2"
     assert normalize_text("A_B") == "AB"
     # 比較演算子
@@ -696,6 +697,7 @@ def test_normalize_text_english():
     # ハイフンで区切られた英単語の処理
     assert normalize_text("pen") == "ペン"
     assert normalize_text("good-pen") == "グッドペン"
+    assert normalize_text("ABC1-2-3") == "エービーシー1-2-3"
     assert normalize_text("OFDMEXA-modular") == "OFDMEXAモジュラー"
     assert (
         # "Bentol" は適当にでっち上げた造語なので C2K によってカタカナ推定が入り、それ以外は辞書からカタカナ表記が取得される
