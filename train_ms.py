@@ -2,12 +2,10 @@ import argparse
 import datetime
 import gc
 import os
-import platform
 
 import torch
 import torch.distributed as dist
 from huggingface_hub import HfApi
-from torch.cuda.amp import GradScaler, autocast
 from torch.nn import functional as F
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
@@ -28,6 +26,14 @@ from mel_processing import mel_spectrogram_torch, spec_to_mel_torch
 from style_bert_vits2.logging import logger
 from style_bert_vits2.models import commons, utils
 from style_bert_vits2.models.hyper_parameters import HyperParameters
+from style_bert_vits2.models.training import (
+    autocast,
+    dataloader_worker_settings,
+    grad_scaler,
+    module_to_device,
+    move_to_device,
+    prepare_training_device,
+)
 from style_bert_vits2.models.models import (
     DurationDiscriminator,
     MultiPeriodDiscriminator,
@@ -126,16 +132,14 @@ def run():
         )
     )
 
-    backend = "nccl"
-    if platform.system() == "Windows":
-        backend = "gloo"  # If Windows,switch to gloo backend.
+    local_rank = int(os.environ["LOCAL_RANK"])
+    training_device = prepare_training_device(local_rank)
     dist.init_process_group(
-        backend=backend,
+        backend=training_device.backend,
         init_method="env://",
         timeout=datetime.timedelta(seconds=300),
     )  # Use torchrun instead of mp.spawn
     rank = dist.get_rank()
-    local_rank = int(os.environ["LOCAL_RANK"])
     n_gpus = dist.get_world_size()
 
     hps = HyperParameters.load_from_json(args.config)
@@ -206,7 +210,6 @@ def run():
         )
 
     torch.manual_seed(hps.train.seed)
-    torch.cuda.set_device(local_rank)
 
     global global_step
     writer = None
@@ -219,6 +222,10 @@ def run():
         writer_eval = SummaryWriter(log_dir=os.path.join(model_dir, "eval"))
     train_dataset = TextAudioSpeakerLoader(hps.data.training_files, hps.data)
     collate_fn = TextAudioSpeakerCollate()
+    train_num_workers, train_persistent_workers = dataloader_worker_settings(
+        training_device.device,
+        requested_num_workers=1,
+    )
     if not args.not_use_custom_batch_sampler:
         train_sampler = DistributedBucketSampler(
             train_dataset,
@@ -232,13 +239,13 @@ def run():
             train_dataset,
             # メモリ消費量を減らそうとnum_workersを1にしてみる
             # num_workers=min(config.train_ms_config.num_workers, os.cpu_count() // 2),
-            num_workers=1,
+            num_workers=train_num_workers,
             shuffle=False,
-            pin_memory=True,
+            pin_memory=training_device.pin_memory,
             collate_fn=collate_fn,
             batch_sampler=train_sampler,
             # batch_size=hps.train.batch_size,
-            persistent_workers=True,
+            persistent_workers=train_persistent_workers,
             # これもメモリ消費量を減らそうとしてコメントアウト
             # prefetch_factor=6,
         )
@@ -255,13 +262,13 @@ def run():
             train_dataset,
             # メモリ消費量を減らそうとnum_workersを1にしてみる
             # num_workers=min(config.train_ms_config.num_workers, os.cpu_count() // 2),
-            num_workers=1,
+            num_workers=train_num_workers,
             # shuffle=True,
-            pin_memory=True,
+            pin_memory=training_device.pin_memory,
             collate_fn=collate_fn,
             sampler=train_sampler,
             batch_size=hps.train.batch_size,
-            persistent_workers=True,
+            persistent_workers=train_persistent_workers,
             # これもメモリ消費量を減らそうとしてコメントアウト
             # prefetch_factor=6,
         )
@@ -274,7 +281,7 @@ def run():
             num_workers=0,
             shuffle=False,
             batch_size=1,
-            pin_memory=True,
+            pin_memory=training_device.pin_memory,
             drop_last=False,
             collate_fn=collate_fn,
         )
@@ -288,13 +295,16 @@ def run():
         noise_scale_delta = 0.0
     if hps.model.use_duration_discriminator is True:
         logger.info("Using duration discriminator for VITS2")
-        net_dur_disc = DurationDiscriminator(
-            hps.model.hidden_channels,
-            hps.model.hidden_channels,
-            3,
-            0.1,
-            gin_channels=hps.model.gin_channels if hps.data.n_speakers != 0 else 0,
-        ).cuda(local_rank)
+        net_dur_disc = module_to_device(
+            DurationDiscriminator(
+                hps.model.hidden_channels,
+                hps.model.hidden_channels,
+                3,
+                0.1,
+                gin_channels=hps.model.gin_channels if hps.data.n_speakers != 0 else 0,
+            ),
+            training_device.device,
+        )
     if hps.model.use_spk_conditioned_encoder is True:
         if hps.data.n_speakers == 0:
             raise ValueError(
@@ -303,37 +313,40 @@ def run():
     else:
         logger.info("Using normal encoder for VITS1")
 
-    net_g = SynthesizerTrn(
-        len(SYMBOLS),
-        hps.data.filter_length // 2 + 1,
-        hps.train.segment_size // hps.data.hop_length,
-        n_speakers=hps.data.n_speakers,
-        mas_noise_scale_initial=mas_noise_scale_initial,
-        noise_scale_delta=noise_scale_delta,
-        # hps.model 以下のすべての値を引数に渡す
-        use_spk_conditioned_encoder=hps.model.use_spk_conditioned_encoder,
-        use_noise_scaled_mas=hps.model.use_noise_scaled_mas,
-        use_mel_posterior_encoder=hps.model.use_mel_posterior_encoder,
-        use_duration_discriminator=hps.model.use_duration_discriminator,
-        use_wavlm_discriminator=hps.model.use_wavlm_discriminator,
-        inter_channels=hps.model.inter_channels,
-        hidden_channels=hps.model.hidden_channels,
-        filter_channels=hps.model.filter_channels,
-        n_heads=hps.model.n_heads,
-        n_layers=hps.model.n_layers,
-        kernel_size=hps.model.kernel_size,
-        p_dropout=hps.model.p_dropout,
-        resblock=hps.model.resblock,
-        resblock_kernel_sizes=hps.model.resblock_kernel_sizes,
-        resblock_dilation_sizes=hps.model.resblock_dilation_sizes,
-        upsample_rates=hps.model.upsample_rates,
-        upsample_initial_channel=hps.model.upsample_initial_channel,
-        upsample_kernel_sizes=hps.model.upsample_kernel_sizes,
-        n_layers_q=hps.model.n_layers_q,
-        use_spectral_norm=hps.model.use_spectral_norm,
-        gin_channels=hps.model.gin_channels,
-        slm=hps.model.slm,
-    ).cuda(local_rank)
+    net_g = module_to_device(
+        SynthesizerTrn(
+            len(SYMBOLS),
+            hps.data.filter_length // 2 + 1,
+            hps.train.segment_size // hps.data.hop_length,
+            n_speakers=hps.data.n_speakers,
+            mas_noise_scale_initial=mas_noise_scale_initial,
+            noise_scale_delta=noise_scale_delta,
+            # hps.model 以下のすべての値を引数に渡す
+            use_spk_conditioned_encoder=hps.model.use_spk_conditioned_encoder,
+            use_noise_scaled_mas=hps.model.use_noise_scaled_mas,
+            use_mel_posterior_encoder=hps.model.use_mel_posterior_encoder,
+            use_duration_discriminator=hps.model.use_duration_discriminator,
+            use_wavlm_discriminator=hps.model.use_wavlm_discriminator,
+            inter_channels=hps.model.inter_channels,
+            hidden_channels=hps.model.hidden_channels,
+            filter_channels=hps.model.filter_channels,
+            n_heads=hps.model.n_heads,
+            n_layers=hps.model.n_layers,
+            kernel_size=hps.model.kernel_size,
+            p_dropout=hps.model.p_dropout,
+            resblock=hps.model.resblock,
+            resblock_kernel_sizes=hps.model.resblock_kernel_sizes,
+            resblock_dilation_sizes=hps.model.resblock_dilation_sizes,
+            upsample_rates=hps.model.upsample_rates,
+            upsample_initial_channel=hps.model.upsample_initial_channel,
+            upsample_kernel_sizes=hps.model.upsample_kernel_sizes,
+            n_layers_q=hps.model.n_layers_q,
+            use_spectral_norm=hps.model.use_spectral_norm,
+            gin_channels=hps.model.gin_channels,
+            slm=hps.model.slm,
+        ),
+        training_device.device,
+    )
 
     if getattr(hps.train, "freeze_ZH_bert", False):
         logger.info("Freezing ZH bert encoder !!!")
@@ -359,7 +372,10 @@ def run():
         for param in net_g.dec.parameters():
             param.requires_grad = False
 
-    net_d = MultiPeriodDiscriminator(hps.model.use_spectral_norm).cuda(local_rank)
+    net_d = module_to_device(
+        MultiPeriodDiscriminator(hps.model.use_spectral_norm),
+        training_device.device,
+    )
     optim_g = torch.optim.AdamW(
         filter(lambda p: p.requires_grad, net_g.parameters()),
         hps.train.learning_rate,
@@ -381,12 +397,14 @@ def run():
         )
     else:
         optim_dur_disc = None
-    net_g = DDP(net_g, device_ids=[local_rank])
-    net_d = DDP(net_d, device_ids=[local_rank])
+    net_g = DDP(net_g, device_ids=training_device.ddp_device_ids)
+    net_d = DDP(net_d, device_ids=training_device.ddp_device_ids)
     dur_resume_lr = None
     if net_dur_disc is not None:
         net_dur_disc = DDP(
-            net_dur_disc, device_ids=[local_rank], find_unused_parameters=True
+            net_dur_disc,
+            device_ids=training_device.ddp_device_ids,
+            find_unused_parameters=True,
         )
 
     if utils.is_resuming(model_dir):
@@ -472,7 +490,7 @@ def run():
         )
     else:
         scheduler_dur_disc = None
-    scaler = GradScaler(enabled=hps.train.bf16_run)
+    scaler = grad_scaler(training_device.device, enabled=hps.train.bf16_run)
     logger.info("Start training.")
 
     diff = abs(
@@ -505,6 +523,7 @@ def run():
                 [writer, writer_eval],
                 pbar,
                 initial_step,
+                training_device.device,
             )
         else:
             train_and_evaluate(
@@ -521,6 +540,7 @@ def run():
                 None,
                 pbar,
                 initial_step,
+                training_device.device,
             )
         scheduler_g.step()
         scheduler_d.step()
@@ -601,6 +621,7 @@ def train_and_evaluate(
     writers,
     pbar: tqdm,
     initial_step: int,
+    device: torch.device,
 ):
     net_g, net_d, net_dur_disc = nets
     optim_g, optim_d, optim_dur_disc = optims
@@ -637,24 +658,20 @@ def train_and_evaluate(
                 - net_g.module.noise_scale_delta * global_step
             )
             net_g.module.current_mas_noise_scale = max(current_mas_noise_scale, 0.0)
-        x, x_lengths = x.cuda(local_rank, non_blocking=True), x_lengths.cuda(
-            local_rank, non_blocking=True
+        x, x_lengths = move_to_device(x, device), move_to_device(x_lengths, device)
+        spec, spec_lengths = move_to_device(spec, device), move_to_device(
+            spec_lengths, device
         )
-        spec, spec_lengths = spec.cuda(
-            local_rank, non_blocking=True
-        ), spec_lengths.cuda(local_rank, non_blocking=True)
-        y, y_lengths = y.cuda(local_rank, non_blocking=True), y_lengths.cuda(
-            local_rank, non_blocking=True
-        )
-        speakers = speakers.cuda(local_rank, non_blocking=True)
-        tone = tone.cuda(local_rank, non_blocking=True)
-        language = language.cuda(local_rank, non_blocking=True)
-        bert = bert.cuda(local_rank, non_blocking=True)
-        ja_bert = ja_bert.cuda(local_rank, non_blocking=True)
-        en_bert = en_bert.cuda(local_rank, non_blocking=True)
-        style_vec = style_vec.cuda(local_rank, non_blocking=True)
+        y, y_lengths = move_to_device(y, device), move_to_device(y_lengths, device)
+        speakers = move_to_device(speakers, device)
+        tone = move_to_device(tone, device)
+        language = move_to_device(language, device)
+        bert = move_to_device(bert, device)
+        ja_bert = move_to_device(ja_bert, device)
+        en_bert = move_to_device(en_bert, device)
+        style_vec = move_to_device(style_vec, device)
 
-        with autocast(enabled=hps.train.bf16_run, dtype=torch.bfloat16):
+        with autocast(device, enabled=hps.train.bf16_run, dtype=torch.bfloat16):
             (
                 y_hat,
                 l_length,
@@ -705,7 +722,7 @@ def train_and_evaluate(
 
             # Discriminator
             y_d_hat_r, y_d_hat_g, _, _ = net_d(y, y_hat.detach())
-            with autocast(enabled=hps.train.bf16_run, dtype=torch.bfloat16):
+            with autocast(device, enabled=hps.train.bf16_run, dtype=torch.bfloat16):
                 loss_disc, losses_disc_r, losses_disc_g = discriminator_loss(
                     y_d_hat_r, y_d_hat_g
                 )
@@ -714,7 +731,7 @@ def train_and_evaluate(
                 y_dur_hat_r, y_dur_hat_g = net_dur_disc(
                     hidden_x.detach(), x_mask.detach(), logw.detach(), logw_.detach()
                 )
-                with autocast(enabled=hps.train.bf16_run, dtype=torch.bfloat16):
+                with autocast(device, enabled=hps.train.bf16_run, dtype=torch.bfloat16):
                     # TODO: I think need to mean using the mask, but for now, just mean all
                     (
                         loss_dur_disc,
@@ -736,12 +753,12 @@ def train_and_evaluate(
         grad_norm_d = commons.clip_grad_value_(net_d.parameters(), None)
         scaler.step(optim_d)
 
-        with autocast(enabled=hps.train.bf16_run, dtype=torch.bfloat16):
+        with autocast(device, enabled=hps.train.bf16_run, dtype=torch.bfloat16):
             # Generator
             y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = net_d(y, y_hat)
             if net_dur_disc is not None:
                 y_dur_hat_r, y_dur_hat_g = net_dur_disc(hidden_x, x_mask, logw, logw_)
-            with autocast(enabled=hps.train.bf16_run, dtype=torch.bfloat16):
+            with autocast(device, enabled=hps.train.bf16_run, dtype=torch.bfloat16):
                 loss_dur = torch.sum(l_length.float())
                 loss_mel = F.l1_loss(y_mel, y_hat_mel) * hps.train.c_mel
                 loss_kl = kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * hps.train.c_kl
@@ -822,7 +839,7 @@ def train_and_evaluate(
                 and initial_step != global_step
             ):
                 if not hps.speedup:
-                    evaluate(hps, net_g, eval_loader, writer_eval)
+                    evaluate(hps, net_g, eval_loader, writer_eval, device)
                 assert hps.model_dir is not None
                 utils.checkpoints.save_checkpoint(
                     net_g,
@@ -892,7 +909,7 @@ def train_and_evaluate(
         logger.info(f"====> Epoch: {epoch}, step: {global_step}")
 
 
-def evaluate(hps, generator, eval_loader, writer_eval):
+def evaluate(hps, generator, eval_loader, writer_eval, device: torch.device):
     generator.eval()
     image_dict = {}
     audio_dict = {}
@@ -914,16 +931,20 @@ def evaluate(hps, generator, eval_loader, writer_eval):
             en_bert,
             style_vec,
         ) in enumerate(eval_loader):
-            x, x_lengths = x.cuda(), x_lengths.cuda()
-            spec, spec_lengths = spec.cuda(), spec_lengths.cuda()
-            y, y_lengths = y.cuda(), y_lengths.cuda()
-            speakers = speakers.cuda()
-            bert = bert.cuda()
-            ja_bert = ja_bert.cuda()
-            en_bert = en_bert.cuda()
-            tone = tone.cuda()
-            language = language.cuda()
-            style_vec = style_vec.cuda()
+            x, x_lengths = move_to_device(x, device), move_to_device(
+                x_lengths, device
+            )
+            spec, spec_lengths = move_to_device(spec, device), move_to_device(
+                spec_lengths, device
+            )
+            y, y_lengths = move_to_device(y, device), move_to_device(y_lengths, device)
+            speakers = move_to_device(speakers, device)
+            bert = move_to_device(bert, device)
+            ja_bert = move_to_device(ja_bert, device)
+            en_bert = move_to_device(en_bert, device)
+            tone = move_to_device(tone, device)
+            language = move_to_device(language, device)
+            style_vec = move_to_device(style_vec, device)
             for use_sdp in [True, False]:
                 y_hat, attn, mask, *_ = generator.module.infer(
                     x,
