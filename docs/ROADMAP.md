@@ -18,3 +18,4 @@
 ## 次候補 (未確定)
 
 - ONNX エクスポート系統の再検討
+- 訓練経路の torch 現行化 (訓練込み近代化。Ada / Blackwell 両世代対応の GPU 要件は [REQUIREMENTS.md](REQUIREMENTS.md) 対応環境を参照)

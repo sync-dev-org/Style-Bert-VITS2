@@ -18,6 +18,7 @@
 
 - Python >= 3.10 (CI 対象は 3.10 / 3.11 / 3.12)
 - PyTorch は optional extra (`torch>=2.1`)。推論は ONNX Runtime のみでも動作する
+- 訓練環境は Ada 世代と Blackwell 世代の GPU の両方に対応する。Blackwell (sm_120) は torch >= 2.7 を要するため、訓練経路は torch 現行系を前提に組む
 - 依存管理は `pyproject.toml` に一元化する (`requirements*.txt` は持たない)。install 経路は uv を正とする
 - バージョンは git tag (`vX.Y.Z`) を正典とし、hatch-vcs で導出する。静的なバージョン定数は持たない
 
