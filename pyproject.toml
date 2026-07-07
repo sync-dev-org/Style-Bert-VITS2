@@ -11,7 +11,7 @@ requires-python = ">=3.10"
 license = "AGPL-3.0"
 keywords = []
 authors = [
-    { name = "litagin02", email = "139731664+litagin02@users.noreply.github.com" },
+    { name = "minamik", email = "minamikik@users.noreply.github.com" },
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -49,9 +49,9 @@ torch = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/litagin02/Style-Bert-VITS2#readme"
-Issues = "https://github.com/litagin02/Style-Bert-VITS2/issues"
-Source = "https://github.com/litagin02/Style-Bert-VITS2"
+Documentation = "https://github.com/sync-dev-org/Style-Bert-VITS2#readme"
+Issues = "https://github.com/sync-dev-org/Style-Bert-VITS2/issues"
+Source = "https://github.com/sync-dev-org/Style-Bert-VITS2"
 
 [tool.hatch.version]
 source = "vcs"
