@@ -3,8 +3,11 @@ from pathlib import Path
 from style_bert_vits2.utils.strenum import StrEnum
 
 
-# Style-Bert-VITS2 のバージョン
-VERSION = "2.7.0"
+# Style-Bert-VITS2 のバージョン (git tag から hatch-vcs が生成する _version.py 由来)
+try:
+    from style_bert_vits2._version import __version__ as VERSION
+except ImportError:
+    VERSION = "0.0.0+unknown"
 
 # Style-Bert-VITS2 のベースディレクトリ
 BASE_DIR = Path(__file__).parent.parent

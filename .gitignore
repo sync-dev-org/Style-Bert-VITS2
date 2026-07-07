@@ -47,3 +47,6 @@ safetensors.ipynb
 
 playground.ipynb
 playgrounds/
+
+# hatch-vcs generated version file
+style_bert_vits2/_version.py
