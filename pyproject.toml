@@ -7,7 +7,7 @@ name = "style-bert-vits2"
 dynamic = ["version"]
 description = "Style-Bert-VITS2: Bert-VITS2 with more controllable voice styles."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "AGPL-3.0"
 keywords = []
 authors = [
@@ -16,15 +16,17 @@ authors = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: Implementation :: CPython",
 ]
 dependencies = [
     "cmudict",
     "cn2an",
+    "e2k>=0.6",
     "g2p_en",
+    "jaconv",
     "jieba",
     "loguru",
     "nltk<=3.8.1",
@@ -71,9 +73,6 @@ train = [
     "soundfile>=0.14",
     "tensorboard>=2.21",
 ]
-
-[tool.uv.dependency-groups]
-train = { requires-python = ">=3.10" }
 
 [tool.hatch.build.targets.sdist]
 only-include = [
