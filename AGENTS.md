@@ -18,3 +18,11 @@ commit / merge の前に、diff と commit message を上記の観点で確認�
 - 本 repo は litagin02/Style-Bert-VITS2 の独立 fork である。上流は開発が停止していると見られ、上流への合流・PR 送付は前提としない。上流の既存成果 (dev branch 等) は必要に応じて素材として取り込む
 - `sync-dev` branch は下流利用者が git URL で直接参照する。依存の大幅変更・API 変更など破壊的変更は別 branch で進め、検証後に統合する
 - ライセンスは AGPL-3.0 (上流準拠)。repo は public を維持する
+
+## 文書正典層
+
+確定事項は `docs/` 配下の正典が持ち、仕掛かり・未決の追跡は issue 台帳 (`.nf/` 配下、追跡対象外) が担う。
+
+- 要件正典: `docs/REQUIREMENTS.md` — 確定済み要件とスコープ境界
+- 計画正典: `docs/ROADMAP.md` — 計画の現在地 snapshot。feature 完遂 commit と同時に更新する
+- feature 仕様: `docs/features/<name>.md` — 着手時に 1 枚起こす。受入条件 (番号付き・挙動ベース) がテストの導出元になる
