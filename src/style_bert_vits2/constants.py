@@ -10,7 +10,11 @@ except ImportError:
     VERSION = "0.0.0+unknown"
 
 # Style-Bert-VITS2 のベースディレクトリ
-BASE_DIR = Path(__file__).parent.parent
+PACKAGE_DIR = Path(__file__).resolve().parent
+if PACKAGE_DIR.parent.name == "src":
+    BASE_DIR = PACKAGE_DIR.parent.parent
+else:
+    BASE_DIR = PACKAGE_DIR.parent
 
 
 # 利用可能な言語

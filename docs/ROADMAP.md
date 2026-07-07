@@ -8,10 +8,11 @@
 - バージョン管理の hatch-vcs 化 (git tag `vX.Y.Z` を正典化)
 - Python >= 3.10 化、gradio 5 系対応
 - テキスト正規化・g2p 基盤の近代化 (上流 dev branch および公開 fork の成果取り込み: 記号・数値・電話番号・郵便番号・住所等の正規化、g2p API 拡張、読み上げ音韻基準の更新)
+- src レイアウト化 (`src/style_bert_vits2/` 配下へ package を配置し、wheel は `style_bert_vits2` package として配布)
 
 ## 進行中 (常に高々 1)
 
-- src レイアウト化: `style_bert_vits2/` → `src/style_bert_vits2/`。packaging 設定の変更を伴うため、別 branch で git URL install のビルド検証を通してから `sync-dev` へ統合する
+- なし
 
 ## 次候補 (未確定)
 
