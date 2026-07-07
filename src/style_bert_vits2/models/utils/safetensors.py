@@ -6,6 +6,9 @@ from safetensors import safe_open
 from safetensors.torch import save_file
 
 from style_bert_vits2.logging import logger
+from style_bert_vits2.models.utils.weight_norm import (
+    migrate_legacy_weight_norm_state_dict,
+)
 
 
 def load_safetensors(
@@ -33,6 +36,7 @@ def load_safetensors(
             if key == "iteration":
                 iteration = f.get_tensor(key).item()
             tensors[key] = f.get_tensor(key)
+    tensors = migrate_legacy_weight_norm_state_dict(tensors)
     if hasattr(model, "module"):
         result = model.module.load_state_dict(tensors, strict=False)
     else:

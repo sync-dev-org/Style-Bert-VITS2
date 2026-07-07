@@ -1,12 +1,8 @@
-import warnings
-
 import torch
 import torch.utils.data
 from librosa.filters import mel as librosa_mel_fn
 
 
-# warnings.simplefilter(action='ignore', category=FutureWarning)
-warnings.filterwarnings(action="ignore")
 MAX_WAV_VALUE = 32768.0
 
 
@@ -42,6 +38,10 @@ mel_basis = {}
 hann_window = {}
 
 
+def _stft_magnitude(spec: torch.Tensor) -> torch.Tensor:
+    return torch.sqrt(torch.view_as_real(spec).pow(2).sum(-1) + 1e-6)
+
+
 def spectrogram_torch(y, n_fft, sampling_rate, hop_size, win_size, center=False):
     if torch.min(y) < -1.0:
         print("min value is ", torch.min(y))
@@ -73,10 +73,10 @@ def spectrogram_torch(y, n_fft, sampling_rate, hop_size, win_size, center=False)
         pad_mode="reflect",
         normalized=False,
         onesided=True,
-        return_complex=False,
+        return_complex=True,
     )
 
-    spec = torch.sqrt(spec.pow(2).sum(-1) + 1e-6)
+    spec = _stft_magnitude(spec)
     return spec
 
 
@@ -137,10 +137,10 @@ def mel_spectrogram_torch(
         pad_mode="reflect",
         normalized=False,
         onesided=True,
-        return_complex=False,
+        return_complex=True,
     )
 
-    spec = torch.sqrt(spec.pow(2).sum(-1) + 1e-6)
+    spec = _stft_magnitude(spec)
 
     spec = torch.matmul(mel_basis[fmax_dtype_device], spec)
     spec = spectral_normalize_torch(spec)
