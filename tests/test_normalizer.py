@@ -985,7 +985,7 @@ def test_normalize_text_japanese_unicode_blocks_keep_surface():
 def test_normalize_text_kanji_digit_sequences():
     assert normalize_text("一-二-三") == "1-2-3"
     assert normalize_text("〇三ー一二三四") == "03-1234"
-    assert normalize_text("〇九〇一一一一二二二二") == "09011112222"
+    assert normalize_text("〇一一一一二二二二三") == "0111122223"
     assert normalize_text("一二三さん") == "一二三さん"
 
 
@@ -997,6 +997,128 @@ def test_normalize_text_zero_variant_characters():
 
 def test_normalize_text_digit_space_guard():
     assert normalize_text("5090 32G") == "5090'32G"
+
+
+def test_normalize_text_phone_numbers():
+    assert (
+        normalize_text("03-1234-5678")
+        == "ゼロサン,イチニーサンヨン,ゴーロクナナハチ"
+    )
+    assert (
+        normalize_text("080-4205-7491")
+        == "ゼロハチゼロ,ヨンニーゼロゴー,ナナヨンキューイチ"
+    )
+    assert (
+        normalize_text("0120-982-954")
+        == "ゼロイチニーゼロ,キューハチニ,キューゴーヨン"
+    )
+    assert (
+        normalize_text("お電話は〇三ー一二三四ー五六七八までお願いします。")
+        == "お電話はゼロサン,イチニーサンヨン,ゴーロクナナハチまでお願いします."
+    )
+    assert (
+        normalize_text("連絡先は09011112222です。")
+        == "連絡先はゼロキューゼロ,イチイチイチイチ,ニーニーニーニーです."
+    )
+
+    assert normalize_text("2026年7月7日") == "2026年7月7日"
+    assert normalize_text("13時45分") == "十三時四十五分"
+    assert normalize_text("1,200円") == "1200円"
+    assert normalize_text("バージョン2.5") == "バージョン2.5"
+    assert normalize_text("ABC1-2-3") == "エービーシー1-2-3"
+    assert normalize_text("0312345678") == "0312345678"
+    assert normalize_text("080-123-4567") == "080-123-4567"
+
+
+def test_normalize_text_postal_codes():
+    assert normalize_text("〒304-0002") == "郵便番号サンマルヨンのゼロゼロゼロニー"
+    assert normalize_text("〒100-0001") == "郵便番号イチゼロゼロのゼロゼロゼロイチ"
+    assert normalize_text("〒802-0838") == "郵便番号ハチマルニーのゼロハチサンハチ"
+    assert normalize_text("〒 304-0002") == "郵便番号サンマルヨンのゼロゼロゼロニー"
+    assert normalize_text("304-0002") == "サンマルヨンのゼロゼロゼロニー"
+    assert (
+        normalize_text("〒三〇四ー〇〇〇二 茨城県下妻市今泉")
+        == "郵便番号サンマルヨンのゼロゼロゼロニー,茨城県下妻市今泉"
+    )
+    assert (
+        normalize_text("〒３０４−０００２")
+        == "郵便番号サンマルヨンのゼロゼロゼロニー"
+    )
+
+    assert normalize_text("1234-567") == "1234-567"
+    assert normalize_text("123-456") == "123-456"
+    assert normalize_text("12-3456") == "12-3456"
+    assert (
+        normalize_text("03-1234-5678")
+        == "ゼロサン,イチニーサンヨン,ゴーロクナナハチ"
+    )
+    assert normalize_text("2026年7月7日") == "2026年7月7日"
+    assert normalize_text("1,200円") == "1200円"
+    assert normalize_text("バージョン2.5") == "バージョン2.5"
+
+
+def test_normalize_text_addresses():
+    assert normalize_text("茨城県下妻市今泉613-6") == "茨城県下妻市今泉613の6"
+    assert normalize_text("東京都港区六本木1-2-3") == "東京都港区六本木1の2の3"
+    assert normalize_text("赤坂1-2-3-609") == "赤坂1の2の3のロクマルキュー"
+    assert normalize_text("赤坂1-2-3-102") == "赤坂1の2の3のイチマルニ"
+    assert (
+        normalize_text("住所は奈良県桜井市鹿路341-18です。")
+        == "住所は奈良県桜井市鹿路341の18です."
+    )
+
+    assert normalize_text("1-2-3") == "1-2-3"
+    assert normalize_text("六本木7") == "六本木7"
+    assert normalize_text("2024-01-01") == "2024年1月1日"
+    assert normalize_text("13時45分") == "十三時四十五分"
+    assert normalize_text("5*8は") == "5かける8は"
+    assert normalize_text("ABC1-2-3") == "エービーシー1-2-3"
+
+
+def test_normalize_text_room_number():
+    assert normalize_text("309号室") == "'サンマルキュー号室"
+    assert normalize_text("グリーンコート赤坂409号室") == "グリーンコート赤坂'ヨンマルキュー号室"
+    assert normalize_text("石田ハイツ101") == "石田ハイツ'イチマルイチ"
+    assert normalize_text("〇〇マンション205号") == "マルマルマンション'ニーマルゴ号"
+    assert normalize_text("2-11-3 309号") == "2の11の3のサンマルキュー号"
+    assert (
+        normalize_text("住所は2-11-3 1205号室です")
+        == "住所は2の11の3のイチニーゼロゴ号室です"
+    )
+    assert (
+        normalize_text("東京都港区六本木1-2-3 サクラハイツ604号室")
+        == "東京都港区六本木1の2の3,サクラハイツ'ロクマルヨン号室"
+    )
+
+    assert normalize_text("こだま309号が発車します") == "こだま309号が発車します"
+    assert (
+        normalize_text("東京都港区六本木1-2-3に届いた。こだま309号で帰る")
+        == "東京都港区六本木1の2の3に届いた.こだま309号で帰る"
+    )
+    assert (
+        normalize_text("バージョン1-2-3 beta 309号を確認した")
+        == "バージョン1-2-3ベータ309号を確認した"
+    )
+    assert normalize_text("13時45分") == "十三時四十五分"
+    assert normalize_text("1,200円") == "1200円"
+
+
+def test_normalize_text_floor_notation():
+    assert normalize_text("1F") == "1階"
+    assert normalize_text("13F") == "13階"
+    assert normalize_text("B1F") == "地下1階"
+    assert normalize_text("3Fのカフェ") == "3階のカフェ"
+    assert normalize_text("マルマルビル 13F") == "マルマルビル13階"
+    assert (
+        normalize_text("東京都港区六本木1-2-3 六本木グランドタワー 13F")
+        == "東京都港区六本木1の2の3,六本木グランドタワー13階"
+    )
+
+    assert normalize_text("5GHz") == "5ギガヘルツ"
+    assert normalize_text("UTF-8") == "ユーティーエフエイト"
+    assert normalize_text("PDF") == "ピーディーエフ"
+    assert normalize_text("2026年7月7日") == "2026年7月7日"
+    assert normalize_text("2*3*4は") == "2かける3かける4は"
 
 
 def test_normalize_text_complex():

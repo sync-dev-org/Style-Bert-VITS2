@@ -282,6 +282,100 @@ __KANJI_HYPHEN_CHAIN_PATTERN = re.compile(
     r"(?:[-\u02d7\u2010\u2012\u2013\u2212](?:[一二三四五六七八九〇]+|\d+))+"
 )
 __LONG_KANJI_DIGIT_SEQUENCE_PATTERN = re.compile(r"[一二三四五六七八九〇]{10,}")
+__DIGIT_TO_KATAKANA_MAP: dict[str, str] = {
+    "0": "ゼロ",
+    "1": "イチ",
+    "2": "ニー",
+    "3": "サン",
+    "4": "ヨン",
+    "5": "ゴー",
+    "6": "ロク",
+    "7": "ナナ",
+    "8": "ハチ",
+    "9": "キュー",
+}
+__DIGIT_TO_KATAKANA_SHORT_MAP: dict[str, str] = {
+    "2": "ニ",
+    "5": "ゴ",
+}
+__DIGIT_ZERO_MARU = "マル"
+__PHONE_HYPHENATED_PATTERN = re.compile(
+    r"(?<!\d)"
+    r"(0\d{1,4})"
+    r"-([\d]{1,4})"
+    r"-([\d]{1,4})"
+    r"(?!\d)"
+)
+__PHONE_NO_HYPHEN_PATTERN = re.compile(
+    r"(?<!\d)"
+    r"(?:"
+    r"(0120)(\d{3})(\d{3})"
+    r"|(0800)(\d{3})(\d{4})"
+    r"|(0570)(\d{3})(\d{3})"
+    r"|(0[6-9]0)(\d{4})(\d{4})"
+    r"|(050)(\d{4})(\d{4})"
+    r")"
+    r"(?!\d)"
+)
+__POSTAL_CODE_WITH_SYMBOL_PATTERN = re.compile(r"〒\s*(\d{3})-(\d{4})")
+__POSTAL_CODE_PATTERN = re.compile(r"(?<!\d)(?<!\d-)(\d{3})-(\d{4})(?!\d)(?!-\d)")
+__ADDRESS_NON_PLACE_KANJI = set("年月日時分秒号")
+__ADDRESS_PATTERN = re.compile(
+    r"([\u3400-\u4DBF\u4E00-\u9FFF])"
+    r"(\d+)-(\d+)"
+    r"(?:-(\d+))?"
+    r"(?:-(\d+))?"
+)
+__ADDRESS_STANDALONE_3PART_WITH_ROOM_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9])"
+    r"(\d+)-(\d+)-(\d+)"
+    r"\s+"
+    r"(\d{3,4})"
+    r"(号室|号)"
+    r"(?![A-Za-z0-9])"
+)
+__ROOM_NUMBER_GOUSHITSU_PATTERN = re.compile(r"(?<!\d)(\d{3,4})号室")
+__ROOM_NUMBER_GOU_PATTERN = re.compile(r"(?<!\d)(\d{3,4})号(?!室)")
+__ADDRESS_EXPLICIT_CONTEXT_PATTERN = re.compile(
+    r"(?:住所|所在地|住居表示|宛先|送付先|丁目|番地|地番)"
+)
+__ADDRESS_ADMINISTRATIVE_NAME_PATTERN = re.compile(
+    r"[\u3400-\u4DBF\u4E00-\u9FFF々〆ヶ]{1,16}(?:都|道|府|県|市|区|町|村)"
+)
+__ADDRESS_JP_NUMBERING_PATTERN = re.compile(r"\d+番(?:地)?(?:\d+)?(?:-\d+)?")
+__ADDRESS_BLOCK_PATTERN = re.compile(r"\d+(?:-|の)\d+(?:(?:-|の)\d+){1,2}")
+__ADDRESS_TO_ROOM_TAIL_ALLOWED_PATTERN = re.compile(
+    r"[\u200c\u200d \u3000A-Za-z0-9\u3040-\u30FF\u3400-\u9FFF々〆ヶノの・ー第\-]{0,64}"
+)
+__ADDRESS_MARKER_TAIL_PATTERN = re.compile(
+    r"[\u200c\u200d \u3000A-Za-z0-9\u30A0-\u30FF\u3400-\u9FFF々〆ヶの・ー第\-]{0,64}"
+)
+__BUILDING_NAME_PATTERN = re.compile(
+    r"(?:"
+    r"マンション|ハイツ|コーポ|レジデンス|アパート|ビル|タワー|荘|コート|ハイム|邸|館|棟"
+    r"|ハウス|テラス|ヒルズ|パレス|シャトー|メゾン|ヴィラ|フラット"
+    r"|プラザ|スクエア|カーサ|ホームズ|寮|苑|ガーデン|フォレスト"
+    r"|プラウド|ブランズ|ブリリア|プレミスト|ウエリス|リビオ|クレヴィア"
+    r"|レーベン|ブランシエラ|イニシア|ポレスター|グレーシア|リーフィア"
+    r"|オハナ|アトラス|クレスト|ライオンズ"
+    r"|パークホームズ|パークタワー|パークシティ|パークコート"
+    r"|パークリュクス|パークアクシス|ファインコート"
+    r"|パークハウス"
+    r"|シティハウス|シティタワー|シティテラス|グランドヒルズ"
+    r")"
+)
+__ROOM_NUMBER_IMPLICIT_PATTERN = re.compile(
+    r"([\u30A0-\u30FF])"
+    r"(\d{3,})"
+    r"(?!号室|号|[a-zA-Z\d])"
+)
+__FLOOR_PATTERN = re.compile(
+    r"(?<![a-zA-Z])"
+    r"(B)?(\d{1,3})F"
+    r"(?![a-zA-Z])"
+)
+__DIGIT_MARKER_SPACE_DIGIT_PATTERN = re.compile(r"(\d)[\u200c\u200d][ \u3000]+(\d)")
+__MARKER_SPACE_PATTERN = re.compile(r"[\u200c\u200d][ \u3000]+")
 
 # 単位の正規化マップ
 # 単位は OpenJTalk 側で変換してくれるものもあるため、単位が1文字で読み間違いが発生しやすい L, m, g, B と、
@@ -1066,6 +1160,8 @@ def __replace_symbols(text: str) -> str:
     except OverflowError:
         pass
 
+    text = __normalize_phone_postal_address_floor(text)
+
     text = __CROSS_MARK_AS_KAKERU_PATTERN.sub("かける", text)
     text = __CROSS_MARK_AS_BATSU_PATTERN.sub("バツ", text)
 
@@ -1076,6 +1172,270 @@ def __replace_symbols(text: str) -> str:
     ## __convert_numbers_to_words() は「¥100」を「100円」と自動で読み替えるが、円記号としてバックスラッシュ (U+005C) が使われているとうまく動作しないため
     ## ref: https://ja.wikipedia.org/wiki/%E5%86%86%E8%A8%98%E5%8F%B7
     text = re.sub(r"\\(?=\d)", "¥", text)
+
+    return text
+
+
+def __normalize_phone_postal_address_floor(text: str) -> str:
+    def digits_to_katakana(
+        digits: str,
+        is_shorten_trailing: bool = False,
+        is_use_maru_for_middle_zero: bool = False,
+    ) -> str:
+        result = ""
+        for index, digit in enumerate(digits):
+            is_last = index == len(digits) - 1
+            is_first = index == 0
+            if (
+                is_last is True
+                and is_shorten_trailing is True
+                and digit in __DIGIT_TO_KATAKANA_SHORT_MAP
+            ):
+                result += __DIGIT_TO_KATAKANA_SHORT_MAP[digit]
+            elif (
+                is_first is False
+                and is_last is False
+                and is_use_maru_for_middle_zero is True
+                and digit == "0"
+                and digits[index - 1] != "0"
+                and digits[index + 1] != "0"
+            ):
+                result += __DIGIT_ZERO_MARU
+            else:
+                result += __DIGIT_TO_KATAKANA_MAP.get(digit, digit)
+        return result
+
+    def convert_phone_number_hyphenated(match: re.Match[str]) -> str:
+        group1 = match.group(1)
+        group2 = match.group(2)
+        group3 = match.group(3)
+        len1 = len(group1)
+        len2 = len(group2)
+        len3 = len(group3)
+        total_digits = len1 + len2 + len3
+
+        if not (2 <= len1 <= 5 and 1 <= len2 <= 4 and 3 <= len3 <= 4):
+            return match.group(0)
+        if not (8 <= total_digits <= 11):
+            return match.group(0)
+
+        is_mobile_prefix = len1 == 3 and group1[0] == "0" and group1[2] == "0"
+        if is_mobile_prefix is True and (len2 != 4 or len3 != 4):
+            return match.group(0)
+
+        katakana1 = digits_to_katakana(group1, is_shorten_trailing=len1 == 3)
+        katakana2 = digits_to_katakana(group2, is_shorten_trailing=len2 == 3)
+        katakana3 = digits_to_katakana(group3, is_shorten_trailing=len3 == 3)
+
+        return f"{katakana1},{katakana2},{katakana3}"
+
+    def convert_phone_number_no_hyphen(match: re.Match[str]) -> str:
+        for pattern_index in range(5):
+            base = pattern_index * 3 + 1
+            group1 = match.group(base)
+            if group1 is not None:
+                group2 = match.group(base + 1)
+                group3 = match.group(base + 2)
+                katakana1 = digits_to_katakana(group1, is_shorten_trailing=len(group1) == 3)
+                katakana2 = digits_to_katakana(group2, is_shorten_trailing=len(group2) == 3)
+                katakana3 = digits_to_katakana(group3, is_shorten_trailing=len(group3) == 3)
+                return f"{katakana1},{katakana2},{katakana3}"
+
+        return match.group(0)
+
+    def convert_postal_code_digits(first3: str, last4: str) -> str:
+        is_use_maru = len(first3) == 3 and first3[1] == "0" and first3[2] != "0"
+        katakana_first = digits_to_katakana(
+            first3,
+            is_use_maru_for_middle_zero=is_use_maru,
+        )
+        katakana_last = digits_to_katakana(last4)
+        return f"{katakana_first}の{katakana_last}"
+
+    def convert_room_number_digits(digits: str) -> str:
+        return digits_to_katakana(
+            digits,
+            is_shorten_trailing=True,
+            is_use_maru_for_middle_zero=len(digits) == 3,
+        )
+
+    def convert_address_parts(
+        part1: str,
+        part2: str,
+        part3: str | None = None,
+        part4: str | None = None,
+        room_suffix: str = "",
+    ) -> str:
+        result = f"{part1}の{part2}"
+        if part3 is not None:
+            result += f"の{part3}"
+        if part4 is not None:
+            if len(part4) >= 3:
+                result += f"の{convert_room_number_digits(part4)}"
+            else:
+                result += f"の{part4}"
+        if room_suffix:
+            result += room_suffix
+        return result
+
+    def has_address_context(prefix_text: str) -> bool:
+        context = prefix_text[-160:]
+        last_boundary = max(
+            context.rfind("。"),
+            context.rfind("."),
+            context.rfind("!"),
+            context.rfind("?"),
+            context.rfind(":"),
+            context.rfind("\n"),
+        )
+        nearby_context = context[last_boundary + 1 :] if last_boundary >= 0 else context
+
+        if _ADDRESS_MARKER in nearby_context:
+            marker_index = nearby_context.rfind(_ADDRESS_MARKER)
+            text_after_marker = nearby_context[marker_index + 1 :]
+            if text_after_marker.strip() != "":
+                if __ADDRESS_MARKER_TAIL_PATTERN.fullmatch(text_after_marker) is not None:
+                    return True
+            elif (
+                __ADDRESS_EXPLICIT_CONTEXT_PATTERN.search(nearby_context) is not None
+                or __ADDRESS_ADMINISTRATIVE_NAME_PATTERN.search(nearby_context)
+                is not None
+            ):
+                return True
+
+        if __ADDRESS_EXPLICIT_CONTEXT_PATTERN.search(nearby_context) is not None:
+            return True
+        if __ADDRESS_ADMINISTRATIVE_NAME_PATTERN.search(nearby_context) is not None:
+            return True
+        if __ADDRESS_JP_NUMBERING_PATTERN.search(nearby_context) is not None:
+            return True
+
+        for address_block_match in __ADDRESS_BLOCK_PATTERN.finditer(nearby_context):
+            head_text = nearby_context[: address_block_match.start()]
+            tail_text = nearby_context[address_block_match.end() :]
+            if __ADDRESS_TO_ROOM_TAIL_ALLOWED_PATTERN.fullmatch(tail_text) is None:
+                continue
+            if __ADDRESS_EXPLICIT_CONTEXT_PATTERN.search(head_text) is not None:
+                return True
+
+        last_building_match: re.Match[str] | None = None
+        for building_match in __BUILDING_NAME_PATTERN.finditer(context):
+            last_building_match = building_match
+        if last_building_match is not None:
+            distance_from_end = len(context) - last_building_match.end()
+            if distance_from_end <= 2:
+                return True
+
+        return False
+
+    _MARKER = "\u200c"
+    _ADDRESS_MARKER = "\u200d"
+
+    for hyphen_variant in (
+        "\u02d7",
+        "\u2010",
+        "\u2012",
+        "\u2013",
+        "\u2212",
+    ):
+        text = text.replace(hyphen_variant, "-")
+
+    def convert_postal_with_symbol(match: re.Match[str]) -> str:
+        first3 = match.group(1)
+        last4 = match.group(2)
+        return f"郵便番号{convert_postal_code_digits(first3, last4)}{_MARKER}"
+
+    text = __POSTAL_CODE_WITH_SYMBOL_PATTERN.sub(convert_postal_with_symbol, text)
+
+    def convert_phone_hyphenated_with_marker(match: re.Match[str]) -> str:
+        result = convert_phone_number_hyphenated(match)
+        if result != match.group(0):
+            return result + _MARKER
+        return result
+
+    text = __PHONE_HYPHENATED_PATTERN.sub(convert_phone_hyphenated_with_marker, text)
+
+    def convert_postal_without_symbol(match: re.Match[str]) -> str:
+        first3 = match.group(1)
+        last4 = match.group(2)
+        return f"{convert_postal_code_digits(first3, last4)}{_MARKER}"
+
+    text = __POSTAL_CODE_PATTERN.sub(convert_postal_without_symbol, text)
+
+    def convert_address(match: re.Match[str]) -> str:
+        kanji = match.group(1)
+        if kanji in __ADDRESS_NON_PLACE_KANJI:
+            return match.group(0)
+        part1 = match.group(2)
+        part2 = match.group(3)
+        part3 = match.group(4)
+        part4 = match.group(5)
+        result = convert_address_parts(part1, part2, part3, part4)
+        return f"{kanji}{result}{_ADDRESS_MARKER}"
+
+    text = __ADDRESS_PATTERN.sub(convert_address, text)
+
+    def convert_standalone_3part_with_room(match: re.Match[str]) -> str:
+        if match.start() > 0 and has_address_context(text[: match.start()]) is False:
+            return match.group(0)
+
+        part1 = match.group(1)
+        part2 = match.group(2)
+        part3 = match.group(3)
+        room_number = match.group(4)
+        room_suffix = match.group(5) or ""
+        return (
+            convert_address_parts(
+                part1,
+                part2,
+                part3,
+                room_number,
+                room_suffix=room_suffix,
+            )
+            + _ADDRESS_MARKER
+        )
+
+    text = __ADDRESS_STANDALONE_3PART_WITH_ROOM_PATTERN.sub(
+        convert_standalone_3part_with_room,
+        text,
+    )
+
+    def convert_room_number_goushitsu(match: re.Match[str]) -> str:
+        digits = match.group(1)
+        return f"'{convert_room_number_digits(digits)}号室"
+
+    text = __ROOM_NUMBER_GOUSHITSU_PATTERN.sub(convert_room_number_goushitsu, text)
+
+    def convert_room_number_gou(match: re.Match[str]) -> str:
+        digits = match.group(1)
+        if has_address_context(text[: match.start()]) is False:
+            return match.group(0)
+        return f"'{convert_room_number_digits(digits)}号"
+
+    text = __ROOM_NUMBER_GOU_PATTERN.sub(convert_room_number_gou, text)
+
+    def convert_room_number_implicit(match: re.Match[str]) -> str:
+        prefix_char = match.group(1)
+        digits = match.group(2)
+        return f"{prefix_char}'{convert_room_number_digits(digits)}"
+
+    text = __ROOM_NUMBER_IMPLICIT_PATTERN.sub(convert_room_number_implicit, text)
+
+    def convert_floor(match: re.Match[str]) -> str:
+        if match.group(1) is not None:
+            return f"地下{match.group(2)}階"
+        return f"{match.group(2)}階"
+
+    text = __FLOOR_PATTERN.sub(convert_floor, text)
+
+    def convert_phone_no_hyphen_with_marker(match: re.Match[str]) -> str:
+        return convert_phone_number_no_hyphen(match) + _MARKER
+
+    text = __PHONE_NO_HYPHEN_PATTERN.sub(convert_phone_no_hyphen_with_marker, text)
+    text = __DIGIT_MARKER_SPACE_DIGIT_PATTERN.sub(r"\1'\2", text)
+    text = __MARKER_SPACE_PATTERN.sub(",", text)
+    text = text.replace(_MARKER, "")
+    text = text.replace(_ADDRESS_MARKER, "")
 
     return text
 
