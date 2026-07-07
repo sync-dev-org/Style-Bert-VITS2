@@ -319,6 +319,13 @@ __PHONE_NO_HYPHEN_PATTERN = re.compile(
 )
 __POSTAL_CODE_WITH_SYMBOL_PATTERN = re.compile(r"〒\s*(\d{3})-(\d{4})")
 __POSTAL_CODE_PATTERN = re.compile(r"(?<!\d)(?<!\d-)(\d{3})-(\d{4})(?!\d)(?!-\d)")
+__ADDRESS_NON_PLACE_KANJI = set("年月日時分秒号")
+__ADDRESS_PATTERN = re.compile(
+    r"([\u3400-\u4DBF\u4E00-\u9FFF])"
+    r"(\d+)-(\d+)"
+    r"(?:-(\d+))?"
+    r"(?:-(\d+))?"
+)
 __DIGIT_MARKER_SPACE_DIGIT_PATTERN = re.compile(r"(\d)[\u200c\u200d][ \u3000]+(\d)")
 __MARKER_SPACE_PATTERN = re.compile(r"[\u200c\u200d][ \u3000]+")
 
@@ -1197,7 +1204,31 @@ def __normalize_phone_postal_address_floor(text: str) -> str:
         katakana_last = digits_to_katakana(last4)
         return f"{katakana_first}の{katakana_last}"
 
+    def convert_room_number_digits(digits: str) -> str:
+        return digits_to_katakana(
+            digits,
+            is_shorten_trailing=True,
+            is_use_maru_for_middle_zero=len(digits) == 3,
+        )
+
+    def convert_address_parts(
+        part1: str,
+        part2: str,
+        part3: str | None = None,
+        part4: str | None = None,
+    ) -> str:
+        result = f"{part1}の{part2}"
+        if part3 is not None:
+            result += f"の{part3}"
+        if part4 is not None:
+            if len(part4) >= 3:
+                result += f"の{convert_room_number_digits(part4)}"
+            else:
+                result += f"の{part4}"
+        return result
+
     _MARKER = "\u200c"
+    _ADDRESS_MARKER = "\u200d"
 
     for hyphen_variant in (
         "\u02d7",
@@ -1230,6 +1261,19 @@ def __normalize_phone_postal_address_floor(text: str) -> str:
 
     text = __POSTAL_CODE_PATTERN.sub(convert_postal_without_symbol, text)
 
+    def convert_address(match: re.Match[str]) -> str:
+        kanji = match.group(1)
+        if kanji in __ADDRESS_NON_PLACE_KANJI:
+            return match.group(0)
+        part1 = match.group(2)
+        part2 = match.group(3)
+        part3 = match.group(4)
+        part4 = match.group(5)
+        result = convert_address_parts(part1, part2, part3, part4)
+        return f"{kanji}{result}{_ADDRESS_MARKER}"
+
+    text = __ADDRESS_PATTERN.sub(convert_address, text)
+
     def convert_phone_no_hyphen_with_marker(match: re.Match[str]) -> str:
         return convert_phone_number_no_hyphen(match) + _MARKER
 
@@ -1237,6 +1281,7 @@ def __normalize_phone_postal_address_floor(text: str) -> str:
     text = __DIGIT_MARKER_SPACE_DIGIT_PATTERN.sub(r"\1'\2", text)
     text = __MARKER_SPACE_PATTERN.sub(",", text)
     text = text.replace(_MARKER, "")
+    text = text.replace(_ADDRESS_MARKER, "")
 
     return text
 

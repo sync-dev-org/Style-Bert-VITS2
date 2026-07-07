@@ -1057,6 +1057,24 @@ def test_normalize_text_postal_codes():
     assert normalize_text("バージョン2.5") == "バージョン2.5"
 
 
+def test_normalize_text_addresses():
+    assert normalize_text("茨城県下妻市今泉613-6") == "茨城県下妻市今泉613の6"
+    assert normalize_text("東京都港区六本木1-2-3") == "東京都港区六本木1の2の3"
+    assert normalize_text("赤坂1-2-3-609") == "赤坂1の2の3のロクマルキュー"
+    assert normalize_text("赤坂1-2-3-102") == "赤坂1の2の3のイチマルニ"
+    assert (
+        normalize_text("住所は奈良県桜井市鹿路341-18です。")
+        == "住所は奈良県桜井市鹿路341の18です."
+    )
+
+    assert normalize_text("1-2-3") == "1-2-3"
+    assert normalize_text("六本木7") == "六本木7"
+    assert normalize_text("2024-01-01") == "2024年1月1日"
+    assert normalize_text("13時45分") == "十三時四十五分"
+    assert normalize_text("5*8は") == "5かける8は"
+    assert normalize_text("ABC1-2-3") == "エービーシー1-2-3"
+
+
 def test_normalize_text_complex():
     """複合的なパターンの正規化のテスト"""
     # 日付・時刻・単位を含む文
