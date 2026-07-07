@@ -1,6 +1,7 @@
 import atexit
 
 import pytest
+import torch
 
 from style_bert_vits2.constants import DEFAULT_BERT_MODEL_PATHS, Languages
 from style_bert_vits2.nlp import bert_models, clean_text, extract_bert_feature
@@ -63,3 +64,8 @@ def test_japanese_bert_feature_cpu_smoke(_loaded_japanese_bert):
     assert feature.shape[0] == _loaded_japanese_bert.config.hidden_size
     assert feature.shape[1] == len(phones)
     assert feature.shape[1] == sum(word2ph)
+    assert feature.dtype == torch.float32
+
+
+def test_japanese_bert_model_loads_float32(_loaded_japanese_bert):
+    assert next(_loaded_japanese_bert.parameters()).dtype == torch.float32

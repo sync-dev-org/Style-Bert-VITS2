@@ -22,6 +22,7 @@ from transformers import (
     PreTrainedModel,
     PreTrainedTokenizer,
     PreTrainedTokenizerFast,
+    __version__ as TRANSFORMERS_VERSION,
 )
 
 from style_bert_vits2.constants import DEFAULT_BERT_MODEL_PATHS, Languages
@@ -41,6 +42,16 @@ __loaded_tokenizers: dict[
     Languages,
     Union[PreTrainedTokenizer, PreTrainedTokenizerFast, DebertaV2TokenizerFast],
 ] = {}
+
+
+def _float32_load_kwargs() -> dict[str, object]:
+    import torch
+
+    transformers_major_version = int(TRANSFORMERS_VERSION.split(".", maxsplit=1)[0])
+    if transformers_major_version >= 5:
+        return {"dtype": torch.float32}
+
+    return {"torch_dtype": torch.float32}
 
 
 def load_model(
@@ -100,6 +111,7 @@ def load_model(
                 device_map=device_map,
                 cache_dir=cache_dir,
                 revision=revision,
+                **_float32_load_kwargs(),
             ),
         )
     else:
@@ -108,6 +120,7 @@ def load_model(
             device_map=device_map,
             cache_dir=cache_dir,
             revision=revision,
+            **_float32_load_kwargs(),
         )
     logger.info(
         f"Loaded the {language.name} BERT model from {pretrained_model_name_or_path} ({time.time() - start_time:.2f}s)"
