@@ -1,6 +1,8 @@
 __pycache__/
 venv/
 .venv/
+# local operational data (never track)
+/.nf/
 dist/
 .coverage*
 .ipynb_checkpoints/
