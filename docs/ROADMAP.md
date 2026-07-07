@@ -9,6 +9,7 @@
 - Python >= 3.10 化、gradio 5 系対応
 - テキスト正規化・g2p 基盤の近代化 (上流 dev branch および公開 fork の成果取り込み: 記号・数値・電話番号・郵便番号・住所等の正規化、g2p API 拡張、読み上げ音韻基準の更新)
 - src レイアウト化 (`src/style_bert_vits2/` 配下へ package を配置し、wheel は `style_bert_vits2` package として配布)
+- pyproject 内の上流残置設定の掃除 (未使用 hatch envs / coverage 設定の撤去、sdist only-include の `.vscode` 除去、ruff 設定の `[tool.ruff.lint]` 節への移設)
 
 ## 進行中 (常に高々 1)
 
@@ -16,5 +17,4 @@
 
 ## 次候補 (未確定)
 
-- pyproject 内の上流残置設定の掃除 (`[tool.hatch.envs.*]` の Python matrix 不整合、sdist only-include の `.vscode` 等)
 - ONNX エクスポート系統の再検討
