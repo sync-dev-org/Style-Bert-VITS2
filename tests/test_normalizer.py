@@ -950,6 +950,38 @@ def test_normalize_text_edge_cases():
     assert normalize_text("NaCl水溶液を作る。") == "エヌエーシーエル水溶液を作る."
 
 
+def test_normalize_text_itaiji():
+    assert normalize_text("醫學") == "医学"
+    assert normalize_text("圖書館") == "図書館"
+    assert normalize_text("鐵道") == "鉄道"
+    assert normalize_text("國語の學校で勉強する。") == "国語の学校で勉強する."
+    assert normalize_text("圖書館で經濟學を學ぶ。") == "図書館で経済学を学ぶ."
+    assert normalize_text("龍が如く") == "竜が如く"
+    assert normalize_text("櫻の花が咲く。") == "桜の花が咲く."
+
+
+def test_normalize_text_cjk_compatibility_ideographs():
+    assert normalize_text("黒﨑さん") == "黒崎さん"
+    assert normalize_text("﨔の木") == "欅の木"
+    assert normalize_text("𠮷野家") == "吉野家"
+    assert normalize_text("𡈽井さん") == "土井さん"
+    assert normalize_text("﨎") == "﨎"
+    assert normalize_text("髙橋さん") == "髙橋さん"
+
+
+def test_normalize_text_japanese_unicode_blocks_keep_surface():
+    assert normalize_text("人〻") == "人人"
+    assert normalize_text("山〻") == "山山"
+    assert normalize_text("締〆") == "締〆"
+    assert normalize_text("〱〲〳〴〵") == "〱〲〳〴〵"
+    assert normalize_text("変体仮名𛀁") == "変体仮名𛀁"
+    assert normalize_text("小書き𛅐") == "小書き𛅐"
+    assert normalize_text("かな𚿰") == "かな𚿰"
+    assert normalize_text("部首⺅") == "部首⺅"
+    assert normalize_text("筆画㇀") == "筆画㇀"
+    assert normalize_text("拡張G𰀀") == "拡張G𰀀"
+
+
 def test_normalize_text_complex():
     """複合的なパターンの正規化のテスト"""
     # 日付・時刻・単位を含む文

@@ -7,6 +7,7 @@ from e2k import C2K, NGram
 from jaconv import jaconv
 from num2words import num2words
 
+from style_bert_vits2.nlp.japanese.itaiji_map import ITAIJI_MAP
 from style_bert_vits2.nlp.japanese.katakana_map import KATAKANA_MAP
 from style_bert_vits2.nlp.symbols import PUNCTUATIONS
 
@@ -15,6 +16,7 @@ from style_bert_vits2.nlp.symbols import PUNCTUATIONS
 # NGram は英単語として読ませるか、アルファベット読みするべきかを判定するモデル
 __characters_to_katakana = C2K()
 __should_transliterated_word_by_ngram = NGram()
+__ITAIJI_TRANSLATE_TABLE = str.maketrans(ITAIJI_MAP)
 
 # 記号類の正規化マップ
 __SYMBOL_REPLACE_MAP = {
@@ -355,10 +357,26 @@ __PAGE_UNIT_PATTERN = re.compile(
     r"(?=($|[^/A-Za-z]))"
 )
 
+# 正規化後に残す漢字系文字の範囲
+__CJK_TEXT_CLEANUP_CHAR_CLASS = (
+    r"\u2E80-\u2EFF\u2F00-\u2FDF\u31C0-\u31EF"
+    + r"\u3400-\u4DBF\u4E00-\u9FFF"
+    + r"\uF900-\uFAFF\U00020000-\U0002FA1F"
+    + r"\U00030000-\U0003347F"
+)
+__JAPANESE_TEXT_CLEANUP_CHAR_CLASS = (
+    r"\u3040-\u309F\u30A0-\u30FF"
+    + r"\U0001AFF0-\U0001AFFF\U0001B000-\U0001B16F"
+    + r"\u3005-\u3007\u3031-\u3035\u303B"
+    + __CJK_TEXT_CLEANUP_CHAR_CLASS
+)
+__IDEOGRAPHIC_ITERATION_BASE_PATTERN = re.compile(
+    r"[" + __CJK_TEXT_CLEANUP_CHAR_CLASS + r"]"
+)
 # 正規化後に残す文字種を表すパターン
 __PUNCTUATION_CLEANUP_PATTERN = re.compile(
-    # ↓ ひらがな、カタカナ、漢字
-    r"[^\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF\u3005"
+    r"[^"
+    + __JAPANESE_TEXT_CLEANUP_CHAR_CLASS
     # ↓ 半角数字
     + r"\u0030-\u0039"
     # ↓ 全角数字
@@ -567,6 +585,24 @@ def normalize_text(text: str) -> str:
     res = res.replace("\u200b", "")
 
     res = unicodedata.normalize("NFKC", res)  # ここで Unicode 正規化が行われる
+
+    res = res.translate(__ITAIJI_TRANSLATE_TABLE)
+
+    if "\u303b" in res:
+        expanded_characters: list[str] = []
+        previous_character = ""
+        for character in res:
+            if (
+                character == "\u303b"
+                and __IDEOGRAPHIC_ITERATION_BASE_PATTERN.fullmatch(previous_character)
+                is not None
+            ):
+                expanded_characters.append(previous_character)
+                continue
+
+            expanded_characters.append(character)
+            previous_character = character
+        res = "".join(expanded_characters)
 
     res = __convert_english_to_katakana(res)  # 英単語をカタカナに変換
 
