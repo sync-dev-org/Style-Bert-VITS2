@@ -7,6 +7,7 @@ from e2k import C2K, NGram
 from jaconv import jaconv
 from num2words import num2words
 
+from style_bert_vits2.nlp.japanese.itaiji_map import ITAIJI_MAP
 from style_bert_vits2.nlp.japanese.katakana_map import KATAKANA_MAP
 from style_bert_vits2.nlp.symbols import PUNCTUATIONS
 
@@ -15,6 +16,7 @@ from style_bert_vits2.nlp.symbols import PUNCTUATIONS
 # NGram は英単語として読ませるか、アルファベット読みするべきかを判定するモデル
 __characters_to_katakana = C2K()
 __should_transliterated_word_by_ngram = NGram()
+__ITAIJI_TRANSLATE_TABLE = str.maketrans(ITAIJI_MAP)
 
 # 記号類の正規化マップ
 __SYMBOL_REPLACE_MAP = {
@@ -102,9 +104,8 @@ __SYMBOL_YOMI_MAP = {
     "＋": "プラス",
     "➕": "プラス",
     "➖": "マイナス",  # 絵文字以外のハイフンは伸ばす棒と区別がつかないので記述していない
-    "×": "かける",
-    "✖": "かける",
-    "⨯": "かける",
+    # × (U+00D7), ✖ (U+2716), ⨯ (U+2A2F) は文脈依存で「かける」or「バツ」に読み分けるため
+    # __SYMBOL_YOMI_MAP には含めず、__CROSS_MARK_AS_KAKERU_PATTERN / __CROSS_MARK_AS_BATSU_PATTERN で別途処理する
     "÷": "わる",
     "➗": "わる",
     # 等号・不等号
@@ -246,6 +247,42 @@ __SYMBOL_YOMI_MAP = {
 # 記号類の読み正規化パターン
 __SYMBOL_YOMI_PATTERN = re.compile("|".join(re.escape(p) for p in __SYMBOL_YOMI_MAP))
 
+__KANJI_TO_DIGIT_MAP: dict[str, str] = {
+    "一": "1",
+    "二": "2",
+    "三": "3",
+    "四": "4",
+    "五": "5",
+    "六": "6",
+    "七": "7",
+    "八": "8",
+    "九": "9",
+    "〇": "0",
+}
+__KANJI_TO_DIGIT_TABLE = str.maketrans("一二三四五六七八九〇", "1234567890")
+__ZERO_VARIANT_REPLACEMENTS: tuple[tuple[str, str], ...] = (
+    ("○\ufe0f", "〇"),
+    ("○\ufe0e", "〇"),
+    ("○", "〇"),
+    ("◯\ufe0f", "〇"),
+    ("◯\ufe0e", "〇"),
+    ("◯", "〇"),
+    ("⭕\ufe0f", "〇"),
+    ("⭕\ufe0e", "〇"),
+    ("⭕", "〇"),
+    ("⚪\ufe0f", "〇"),
+    ("⚪\ufe0e", "〇"),
+    ("⚪", "〇"),
+)
+__PROLONGED_SOUND_AS_HYPHEN_PATTERN = re.compile(
+    r"(?<=[一二三四五六七八九〇0-9])ー(?=[一二三四五六七八九〇0-9])"
+)
+__KANJI_HYPHEN_CHAIN_PATTERN = re.compile(
+    r"(?:[一二三四五六七八九〇]+|\d+)"
+    r"(?:[-\u02d7\u2010\u2012\u2013\u2212](?:[一二三四五六七八九〇]+|\d+))+"
+)
+__LONG_KANJI_DIGIT_SEQUENCE_PATTERN = re.compile(r"[一二三四五六七八九〇]{10,}")
+
 # 単位の正規化マップ
 # 単位は OpenJTalk 側で変換してくれるものもあるため、単位が1文字で読み間違いが発生しやすい L, m, g, B と、
 # OpenJTalk では変換できない単位、正規化処理で変換しておいた方が実装上都合が良い単位のみ変換する
@@ -342,11 +379,40 @@ __UNIT_PATTERN = re.compile(
     r"(?P<suffix>/[hs])?"
     r"(?=($|(?=/([^A-Za-z]|$))|[^/A-Za-z]))"
 )
+# 温度と角度の度数表記を単位変換の前に「度」へ畳む
+__DEGREE_UNIT_PATTERN = re.compile(
+    r"(?P<sign>[+\-−－ー])?\s*"
+    r"(?P<number>[0-9.]*[0-9](?:[eE][-+]?[0-9]+)?)\s*"
+    r"(?P<unit>℃|℉|°\s*[CcFf]|度\s*[CcFf]|°|度)"
+)
+__PAGE_UNIT_PATTERN = re.compile(
+    r"(?<!No\.)(?<!NO\.)(?<!no\.)(?<!ノー)(?<!ノー\.)"
+    r"(?<![A-Za-z0-9/])"
+    r"(?P<number>\d{1,3}(?:,\d{3})*|\d+)\s*"
+    r"(?P<unit>[pP])"
+    r"(?=($|[^/A-Za-z]))"
+)
 
+# 正規化後に残す漢字系文字の範囲
+__CJK_TEXT_CLEANUP_CHAR_CLASS = (
+    r"\u2E80-\u2EFF\u2F00-\u2FDF\u31C0-\u31EF"
+    + r"\u3400-\u4DBF\u4E00-\u9FFF"
+    + r"\uF900-\uFAFF\U00020000-\U0002FA1F"
+    + r"\U00030000-\U0003347F"
+)
+__JAPANESE_TEXT_CLEANUP_CHAR_CLASS = (
+    r"\u3040-\u309F\u30A0-\u30FF"
+    + r"\U0001AFF0-\U0001AFFF\U0001B000-\U0001B16F"
+    + r"\u3005-\u3007\u3031-\u3035\u303B"
+    + __CJK_TEXT_CLEANUP_CHAR_CLASS
+)
+__IDEOGRAPHIC_ITERATION_BASE_PATTERN = re.compile(
+    r"[" + __CJK_TEXT_CLEANUP_CHAR_CLASS + r"]"
+)
 # 正規化後に残す文字種を表すパターン
 __PUNCTUATION_CLEANUP_PATTERN = re.compile(
-    # ↓ ひらがな、カタカナ、漢字
-    r"[^\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF\u3005"
+    r"[^"
+    + __JAPANESE_TEXT_CLEANUP_CHAR_CLASS
     # ↓ 半角数字
     + r"\u0030-\u0039"
     # ↓ 全角数字
@@ -408,6 +474,34 @@ __CURRENCY_MAP = {
 __CURRENCY_PATTERN = re.compile(
     r"([$¥€£₩₹₽₺฿₱₴₫₪₦₡₿﷼₠₢₣₤₥₧₨₭₮₯₰₲₳₵₶₷₸₻₼₾])([0-9.]*[0-9])|([0-9.]*[0-9])([$¥€£₩₹₽₺฿₱₴₫₪₦₡₿﷼₠₢₣₤₥₧₨₭₮₯₰₲₳₵₶₷₸₻₼₾])"
 )
+__CHEMICAL_FORMULA_YOMI_MAP: dict[str, str] = {
+    "CO": "シーオー",
+    "CO2": "シーオーツー",
+    "CH4": "シーエイチフォー",
+    "H2O": "エイチツーオー",
+    "N2": "エヌツー",
+    "NO2": "エヌオーツー",
+    "NH3": "エヌエイチスリー",
+    "O2": "オーツー",
+    "O3": "オースリー",
+    "SO2": "エスオーツー",
+    "HCl": "エイチシーエル",
+    "NaCl": "エヌエーシーエル",
+}
+__CHEMICAL_FORMULA_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9])"
+    + "("
+    + "|".join(
+        re.escape(formula)
+        for formula in sorted(
+            __CHEMICAL_FORMULA_YOMI_MAP.keys(),
+            key=len,
+            reverse=True,
+        )
+    )
+    + ")"
+    + r"(?![A-Za-z0-9])"
+)
 __NUMBER_PATTERN = re.compile(r"[0-9]+(\.[0-9]+)?")
 __NUMBER_WITH_SEPARATOR_PATTERN = re.compile("[0-9]{1,3}(,[0-9]{3})+")
 
@@ -444,6 +538,9 @@ __NUMBER_RANGE_PATTERN = re.compile(
 __NUMBER_MATH_PATTERN = re.compile(
     r"(\d+)\s*([+＋➕\-−－ー➖×✖⨯÷➗*＊])\s*(\d+)\s*=\s*(\d+)"
 )
+__NUMBER_MULTIPLICATION_PATTERN = re.compile(
+    r"(\d+(?:\.\d+)?)\s*([×✖⨯*＊])\s*(\d+(?:\.\d+)?)"
+)
 __NUMBER_COMPARISON_PATTERN = re.compile(r"(\d+)\s*([<＜>＞])\s*(\d+)")
 __YEAR_MONTH_PATTERN = re.compile(r"(?<!\d)(18|19|20|21|22)(\d{2})/([0-1]?\d)(?!\d)")
 __FRACTION_PATTERN = re.compile(r"(\d+)[/／](\d+)")
@@ -453,14 +550,51 @@ __DATE_EXPAND_PATTERN = re.compile(r"\d{2}[-/\.]\d{1,2}[-/\.]\d{1,2}")
 __DATE_PATTERN = re.compile(
     r"(?<!\d)(?:\d{4}[-/\.][0-9]{1,2}[-/\.][0-9]{1,2}|\d{2}[-/\.][0-9]{1,2}[-/\.][0-9]{1,2}|[0-9]{1,2}/[0-9]{1,2}|\d{4}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))(?!\d)"
 )
+__POWER_PATTERN = re.compile(
+    r"(?P<base>[A-Za-z]+|\d+(?:\.\d+)?)?\s*\^\s*"
+    r"(?P<sign>[+\-−－ー]?)(?P<exponent>\d+)"
+)
 __EXPONENT_PATTERN = re.compile(r"(\d+(?:\.\d+)?)[eE]([-+]?\d+)")
+__CROSS_MARK_AS_KAKERU_PATTERN = re.compile(
+    r"(?<=[\u4e00-\u9fff\u3400-\u4dbf\u30a0-\u30ff0-9a-zA-Z])"
+    r"[×✖⨯❌][\ufe0e\ufe0f]?"
+    r"(?=[\u4e00-\u9fff\u3400-\u4dbf\u30a0-\u30ff0-9a-zA-Z])",
+)
+__CROSS_MARK_AS_BATSU_PATTERN = re.compile(r"[×✖⨯❌][\ufe0e\ufe0f]?")
 
 # __convert_english_to_katakana() で使う正規表現パターン
 __ENGLISH_WORD_PATTERN = re.compile(r"[a-zA-Z0-9]")
 __ENGLISH_WORD_WITH_NUMBER_PATTERN = re.compile(
-    r"([a-zA-Z]+)[\s-]?([1-9]|1[01])(?!\d|\.\d)"  # 12 以降は英語読みしない
+    r"([a-zA-Z]+)[\s-]?([1-9]|1[01])(?!\d|\.\d|-\d)"  # 12 以降は英語読みしない
 )
 __ALPHABET_PATTERN = re.compile(r"[a-zA-Z]")
+
+
+def __normalize_kanji_and_separators(text: str) -> str:
+    for old_char, new_char in __ZERO_VARIANT_REPLACEMENTS:
+        text = text.replace(old_char, new_char)
+
+    text = __PROLONGED_SOUND_AS_HYPHEN_PATTERN.sub("-", text)
+    text = __convert_kanji_numeral_sequences(text)
+    text = text.replace("\u3007", "マル")
+
+    return text
+
+
+def __convert_kanji_numeral_sequences(text: str) -> str:
+    def convert_chain_kanji_digits(match: re.Match[str]) -> str:
+        chain = match.group()
+        if not any(char in __KANJI_TO_DIGIT_MAP for char in chain):
+            return chain
+        return chain.translate(__KANJI_TO_DIGIT_TABLE)
+
+    text = __KANJI_HYPHEN_CHAIN_PATTERN.sub(convert_chain_kanji_digits, text)
+    text = __LONG_KANJI_DIGIT_SEQUENCE_PATTERN.sub(
+        lambda match: match.group().translate(__KANJI_TO_DIGIT_TABLE),
+        text,
+    )
+
+    return text
 
 
 def normalize_text(text: str) -> str:
@@ -501,6 +635,8 @@ def normalize_text(text: str) -> str:
         text, kana=False, digit=True, ascii=True, ignore="\u3000"
     )  # 全角スペースは変換しない
 
+    text = __normalize_kanji_and_separators(text)
+
     # Unicode 正規化前に記号を変換
     # 正規化前でないと ℃ などが unicodedata.normalize() で分割されてしまう
     res = __replace_symbols(text)
@@ -514,6 +650,24 @@ def normalize_text(text: str) -> str:
     res = res.replace("\u200b", "")
 
     res = unicodedata.normalize("NFKC", res)  # ここで Unicode 正規化が行われる
+
+    res = res.translate(__ITAIJI_TRANSLATE_TABLE)
+
+    if "\u303b" in res:
+        expanded_characters: list[str] = []
+        previous_character = ""
+        for character in res:
+            if (
+                character == "\u303b"
+                and __IDEOGRAPHIC_ITERATION_BASE_PATTERN.fullmatch(previous_character)
+                is not None
+            ):
+                expanded_characters.append(previous_character)
+                continue
+
+            expanded_characters.append(character)
+            previous_character = character
+        res = "".join(expanded_characters)
 
     res = __convert_english_to_katakana(res)  # 英単語をカタカナに変換
 
@@ -681,7 +835,7 @@ def __replace_symbols(text: str) -> str:
         # 読み間違いを防ぐため、数式の間に挟まれた場合にのみ下記の通り読み上げる
         if symbol in ("-", "−", "－", "ー"):
             return "マイナス"
-        if symbol in ("*", "＊"):
+        if symbol in ("*", "＊", "×", "✖", "⨯"):
             return "かける"
         return __SYMBOL_YOMI_MAP.get(symbol, symbol)
 
@@ -698,6 +852,14 @@ def __replace_symbols(text: str) -> str:
         lambda m: f"{m.group(1)}{get_symbol_yomi(m.group(2))}{m.group(3)}イコール{m.group(4)}",
         text,
     )
+    while True:
+        replaced_text = __NUMBER_MULTIPLICATION_PATTERN.sub(
+            lambda m: f"{m.group(1)}{get_symbol_yomi(m.group(2))}{m.group(3)}",
+            text,
+        )
+        if replaced_text == text:
+            break
+        text = replaced_text
     # 比較演算子を処理
     text = __NUMBER_COMPARISON_PATTERN.sub(
         lambda m: f"{m.group(1)}{get_comparison_yomi(m.group(2))}{m.group(3)}", text
@@ -877,6 +1039,24 @@ def __replace_symbols(text: str) -> str:
     # 時刻またはアスペクト比パターンの処理（コロンで区切られた時分秒）
     text = __ASPECT_PATTERN.sub(convert_time_or_aspect, text)
 
+    def convert_power(match: re.Match[str]) -> str:
+        base = match.group("base") or ""
+        sign = match.group("sign")
+        exponent = match.group("exponent")
+
+        if base == "" and match.start() > 0:
+            previous_character = text[match.start() - 1]
+            if (
+                __WORD_CHAR_PATTERN.fullmatch(previous_character) is not None
+                or previous_character == "^"
+            ):
+                return match.group(0)
+
+        sign_text = get_symbol_yomi(sign) if sign != "" else ""
+        return f"{base}の{sign_text}{exponent}乗"
+
+    text = __POWER_PATTERN.sub(convert_power, text)
+
     # 指数表記の処理
     ## 稀にランダムな英数字 ID にマッチしたことで OverflowError が発生するが、続行に支障はないため無視する
     try:
@@ -885,6 +1065,9 @@ def __replace_symbols(text: str) -> str:
         )
     except OverflowError:
         pass
+
+    text = __CROSS_MARK_AS_KAKERU_PATTERN.sub("かける", text)
+    text = __CROSS_MARK_AS_BATSU_PATTERN.sub("バツ", text)
 
     # 記号類を辞書で置換
     text = __SYMBOL_YOMI_PATTERN.sub(lambda x: __SYMBOL_YOMI_MAP[x.group()], text)
@@ -908,6 +1091,25 @@ def __convert_numbers_to_words(text: str) -> str:
     Returns:
         str: 変換されたテキスト
     """
+
+    def convert_degree_unit(match: re.Match[str]) -> str:
+        number = match.group("number")
+        sign = match.group("sign")
+        sign_text = ""
+
+        if sign in {"-", "−", "－", "ー"}:
+            sign_text = "マイナス"
+        elif sign == "+":
+            sign_text = "プラス"
+
+        return f"{sign_text}{number}度"
+
+    def convert_page_unit(match: re.Match[str]) -> str:
+        page_number = match.group("number").replace(",", "")
+        return f"{page_number}ページ"
+
+    res = __DEGREE_UNIT_PATTERN.sub(convert_degree_unit, text)
+    res = __PAGE_UNIT_PATTERN.sub(convert_page_unit, res)
 
     # 単位の変換（平方メートルなどの特殊な単位も含む）
     def convert_unit(match: re.Match[str]) -> str:
@@ -940,7 +1142,7 @@ def __convert_numbers_to_words(text: str) -> str:
             return f"{number}{__UNIT_MAP.get(unit, unit)}"
 
     # 単位の変換
-    res = __UNIT_PATTERN.sub(convert_unit, text)
+    res = __UNIT_PATTERN.sub(convert_unit, res)
 
     # 12,300 のような数字の区切りとしてのカンマを削除
     res = __NUMBER_WITH_SEPARATOR_PATTERN.sub(lambda m: m[0].replace(",", ""), res)
@@ -1103,6 +1305,10 @@ def __convert_english_to_katakana(text: str) -> str:
         word = word.strip()
         # print(f"word: {word}")
 
+        chemical_formula_yomi = __CHEMICAL_FORMULA_YOMI_MAP.get(word)
+        if chemical_formula_yomi is not None:
+            return chemical_formula_yomi
+
         # 単体の大文字アルファベットは単位や記号として使われるケースが多く、
         # 安易にカタカナ読みすると不自然になりやすいため変換しない
         if len(word) == 1 and word.isupper() is True:
@@ -1113,6 +1319,21 @@ def __convert_english_to_katakana(text: str) -> str:
         word_without_numbers = __NUMBER_PATTERN.sub("", word)
         if word_without_numbers in __UNIT_MAP:
             return word
+
+        alpha_with_hyphenated_numbers_match = re.fullmatch(
+            r"([a-zA-Z]+)(\d+(?:-\d+)+)",
+            word,
+        )
+        if alpha_with_hyphenated_numbers_match:
+            base_word = alpha_with_hyphenated_numbers_match.group(1)
+            numeric_tail = alpha_with_hyphenated_numbers_match.group(2)
+            converted_base_word = process_english_word(
+                base_word,
+                enable_romaji_c2k=enable_romaji_c2k,
+            )
+            if converted_base_word == base_word:
+                return word
+            return f"{converted_base_word}{numeric_tail}"
 
         # 英単語の末尾に 11 以下の数字 (1.0 のような小数表記を除く) がつく場合の処理 (例: iPhone 11, Pixel8)
         number_match = __ENGLISH_WORD_WITH_NUMBER_PATTERN.match(word)
@@ -1404,6 +1625,11 @@ def __convert_english_to_katakana(text: str) -> str:
                 return False
         return True
 
+    text = __CHEMICAL_FORMULA_PATTERN.sub(
+        lambda match: __CHEMICAL_FORMULA_YOMI_MAP[match.group(1)],
+        text,
+    )
+
     # NFKC 処理でいくつかハイフンの変種が U+002D とは別のハイフンである U+2010 に変換されるので、それを通常のハイフンに変換する
     text = text.replace("\u2010", "-")
 
@@ -1515,6 +1741,21 @@ def __convert_english_to_katakana(text: str) -> str:
                     current_word += int_part
                     i = j  # 数字の最後の位置まで進める
                     continue
+
+        if char == "-":
+            is_english_hyphen = (
+                bool(current_word)
+                and __ALPHABET_PATTERN.search(current_word) is not None
+            ) or (
+                __ALPHABET_PATTERN.match(prev_char) is not None
+                and __ALPHABET_PATTERN.match(next_char) is not None
+            )
+            if is_english_hyphen is False and current_word == "":
+                words.append(char)
+                is_english_converted.append(False)
+                prev_char = char
+                i += 1
+                continue
 
         # 英数字または特定の記号であれば current_word に追加
         if __ENGLISH_WORD_PATTERN.match(char) is not None or char in "-&+'":
@@ -1657,6 +1898,15 @@ def replace_punctuation(text: str) -> str:
     Returns:
         str: 正規化されたテキスト
     """
+    def remove_unreadable_symbols(match: re.Match[str]) -> str:
+        if (
+            match.start() > 0
+            and match.end() < len(replaced_text)
+            and replaced_text[match.start() - 1].isdigit() is True
+            and replaced_text[match.end()].isdigit() is True
+        ):
+            return "'"
+        return ""
 
     # 句読点を辞書で置換
     replaced_text = __SYMBOL_REPLACE_PATTERN.sub(
@@ -1664,7 +1914,9 @@ def replace_punctuation(text: str) -> str:
     )
 
     # 上述以外の文字を削除
-    replaced_text = __PUNCTUATION_CLEANUP_PATTERN.sub("", replaced_text)
+    replaced_text = __PUNCTUATION_CLEANUP_PATTERN.sub(
+        remove_unreadable_symbols, replaced_text
+    )
 
     return replaced_text
 

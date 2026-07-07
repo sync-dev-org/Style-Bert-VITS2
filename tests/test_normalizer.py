@@ -159,6 +159,11 @@ def test_normalize_text_units():
     assert normalize_text("24s営業") == "24秒営業"
     assert normalize_text("500Kがある") == "500Kがある"
     assert normalize_text("50℃") == "50度"
+    assert normalize_text("5.6°C") == "5.6度"
+    assert normalize_text("98.6°F") == "98.6度"
+    assert normalize_text("180°回転") == "180度回転"
+    assert normalize_text("40p") == "40ページ"
+    assert normalize_text("No.40p") == "ノー40p"
     assert normalize_text("50ms") == "50ミリ秒"
     assert normalize_text("50s") == "50秒"
     assert normalize_text("50ns") == "50ナノ秒"
@@ -496,6 +501,15 @@ def test_normalize_text_symbols():
     assert normalize_text("5-3=2") == "5マイナス3イコール2"
     assert normalize_text("2×3=6") == "2かける3イコール6"
     assert normalize_text("6÷2=3") == "6わる2イコール3"
+    assert normalize_text("2*3*4は") == "2かける3かける4は"
+    assert normalize_text("x^4") == "xの4乗"
+    assert normalize_text("10^-3") == "10のマイナス3乗"
+    assert normalize_text("10^^3") == "10'3"
+    assert normalize_text("×") == "バツ"
+    assert normalize_text("答えは×です") == "答えはバツです"
+    assert normalize_text("日本語-テスト") == "日本語-テスト"
+    assert normalize_text("1_2") == "1'2"
+    assert normalize_text("A_B") == "AB"
     # 比較演算子
     assert normalize_text("5>3") == "5大なり3"
     assert normalize_text("5≥3") == "5大なりイコール3"
@@ -683,6 +697,7 @@ def test_normalize_text_english():
     # ハイフンで区切られた英単語の処理
     assert normalize_text("pen") == "ペン"
     assert normalize_text("good-pen") == "グッドペン"
+    assert normalize_text("ABC1-2-3") == "エービーシー1-2-3"
     assert normalize_text("OFDMEXA-modular") == "OFDMEXAモジュラー"
     assert (
         # "Bentol" は適当にでっち上げた造語なので C2K によってカタカナ推定が入り、それ以外は辞書からカタカナ表記が取得される
@@ -930,6 +945,58 @@ def test_normalize_text_edge_cases():
         normalize_text("㍉㌔㌢㍍㌘㌧㌃㌶㍑㍗")
         == "ミリキロセンチメートルグラムトンアールヘクタールリットルワット"
     )
+    assert normalize_text("CO2濃度を測定する。") == "シーオーツー濃度を測定する."
+    assert normalize_text("H2Oを加える。") == "エイチツーオーを加える."
+    assert normalize_text("NaCl水溶液を作る。") == "エヌエーシーエル水溶液を作る."
+
+
+def test_normalize_text_itaiji():
+    assert normalize_text("醫學") == "医学"
+    assert normalize_text("圖書館") == "図書館"
+    assert normalize_text("鐵道") == "鉄道"
+    assert normalize_text("國語の學校で勉強する。") == "国語の学校で勉強する."
+    assert normalize_text("圖書館で經濟學を學ぶ。") == "図書館で経済学を学ぶ."
+    assert normalize_text("龍が如く") == "竜が如く"
+    assert normalize_text("櫻の花が咲く。") == "桜の花が咲く."
+
+
+def test_normalize_text_cjk_compatibility_ideographs():
+    assert normalize_text("黒﨑さん") == "黒崎さん"
+    assert normalize_text("﨔の木") == "欅の木"
+    assert normalize_text("𠮷野家") == "吉野家"
+    assert normalize_text("𡈽井さん") == "土井さん"
+    assert normalize_text("﨎") == "﨎"
+    assert normalize_text("髙橋さん") == "髙橋さん"
+
+
+def test_normalize_text_japanese_unicode_blocks_keep_surface():
+    assert normalize_text("人〻") == "人人"
+    assert normalize_text("山〻") == "山山"
+    assert normalize_text("締〆") == "締〆"
+    assert normalize_text("〱〲〳〴〵") == "〱〲〳〴〵"
+    assert normalize_text("変体仮名𛀁") == "変体仮名𛀁"
+    assert normalize_text("小書き𛅐") == "小書き𛅐"
+    assert normalize_text("かな𚿰") == "かな𚿰"
+    assert normalize_text("部首⺅") == "部首⺅"
+    assert normalize_text("筆画㇀") == "筆画㇀"
+    assert normalize_text("拡張G𰀀") == "拡張G𰀀"
+
+
+def test_normalize_text_kanji_digit_sequences():
+    assert normalize_text("一-二-三") == "1-2-3"
+    assert normalize_text("〇三ー一二三四") == "03-1234"
+    assert normalize_text("〇九〇一一一一二二二二") == "09011112222"
+    assert normalize_text("一二三さん") == "一二三さん"
+
+
+def test_normalize_text_zero_variant_characters():
+    assert normalize_text("〇〇電鉄") == "マルマル電鉄"
+    assert normalize_text("○○電鉄") == "マルマル電鉄"
+    assert normalize_text("ぶっ◯せ") == "ぶっマルせ"
+
+
+def test_normalize_text_digit_space_guard():
+    assert normalize_text("5090 32G") == "5090'32G"
 
 
 def test_normalize_text_complex():
