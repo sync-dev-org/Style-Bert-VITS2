@@ -57,7 +57,7 @@ Source = "https://github.com/litagin02/Style-Bert-VITS2"
 source = "vcs"
 
 [tool.hatch.build.hooks.vcs]
-version-file = "style_bert_vits2/_version.py"
+version-file = "src/style_bert_vits2/_version.py"
 
 [dependency-groups]
 dev = [
@@ -96,7 +96,7 @@ only-include = [
     ".vscode",
     "dict_data/default.csv",
     "docs",
-    "style_bert_vits2",
+    "src/style_bert_vits2",
     "tests",
     "LGPL_LICENSE",
     "LICENSE",
@@ -106,7 +106,7 @@ only-include = [
 exclude = [".git", ".gitignore", ".gitattributes"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["style_bert_vits2"]
+packages = ["src/style_bert_vits2"]
 
 # for PyTorch inference
 [tool.hatch.envs.test]
@@ -177,10 +177,10 @@ fmt = [
 source_pkgs = ["style_bert_vits2", "tests"]
 branch = true
 parallel = true
-omit = ["style_bert_vits2/constants.py"]
+omit = ["src/style_bert_vits2/constants.py"]
 
 [tool.coverage.paths]
-style_bert_vits2 = ["style_bert_vits2", "*/style-bert-vits2/style_bert_vits2"]
+style_bert_vits2 = ["src/style_bert_vits2", "*/style-bert-vits2/src/style_bert_vits2"]
 tests = ["tests", "*/style-bert-vits2/tests"]
 
 [tool.coverage.report]

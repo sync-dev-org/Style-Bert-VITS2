@@ -49,7 +49,7 @@ playground.ipynb
 playgrounds/
 
 # hatch-vcs generated version file
-style_bert_vits2/_version.py
+src/style_bert_vits2/_version.py
 
 # local uv python pin (not part of the distributed package)
 .python-version
