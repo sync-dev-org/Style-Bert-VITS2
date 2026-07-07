@@ -1,7 +1,7 @@
 import atexit
 import json
 import os
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
@@ -77,11 +77,19 @@ def _build_snapshot() -> dict[str, Any]:
     return {
         "schema_version": 1,
         "metadata": {
-            "pyopenjtalk_dict": version("pyopenjtalk-dict"),
+            "pyopenjtalk_dict": _pyopenjtalk_dict_snapshot_version(),
             "tokenizer": JP_BERT_MODEL_ID,
         },
         "cases": [_build_case_snapshot(case) for case in CASES],
     }
+
+
+def _pyopenjtalk_dict_snapshot_version() -> str:
+    try:
+        return version("pyopenjtalk-dict")
+    except PackageNotFoundError:
+        snapshot = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+        return str(snapshot["metadata"]["pyopenjtalk_dict"])
 
 
 def _build_case_snapshot(case: dict[str, str]) -> dict[str, Any]:

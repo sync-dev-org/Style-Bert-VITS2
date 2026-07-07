@@ -6,6 +6,7 @@ from typing import Any, cast
 import pyopenjtalk
 
 from style_bert_vits2.logging import logger
+from style_bert_vits2.nlp.japanese.pyopenjtalk_worker import adapter
 from style_bert_vits2.nlp.japanese.pyopenjtalk_worker.worker_common import (
     ConnectionClosedException,
     RequestType,
@@ -17,7 +18,7 @@ from style_bert_vits2.nlp.japanese.pyopenjtalk_worker.worker_common import (
 # To make it as fast as possible
 # Probably faster than calling getattr every time
 PYOPENJTALK_FUNC_DICT = {
-    "run_frontend": pyopenjtalk.run_frontend,
+    "run_frontend": adapter.run_frontend,
     "make_label": pyopenjtalk.make_label,
     "mecab_dict_index": pyopenjtalk.mecab_dict_index,
     "update_global_jtalk_with_user_dict": pyopenjtalk.update_global_jtalk_with_user_dict,

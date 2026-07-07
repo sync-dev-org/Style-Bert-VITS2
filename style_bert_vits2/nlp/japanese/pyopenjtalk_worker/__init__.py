@@ -6,6 +6,7 @@ to avoid user dictionary access error
 from typing import Any, Optional
 
 from style_bert_vits2.logging import logger
+from style_bert_vits2.nlp.japanese.pyopenjtalk_worker import adapter
 from style_bert_vits2.nlp.japanese.pyopenjtalk_worker.worker_client import WorkerClient
 from style_bert_vits2.nlp.japanese.pyopenjtalk_worker.worker_common import WORKER_PORT
 
@@ -24,9 +25,7 @@ def run_frontend(text: str) -> list[dict[str, Any]]:
         return ret
     else:
         # without worker
-        import pyopenjtalk
-
-        return pyopenjtalk.run_frontend(text)
+        return adapter.run_frontend(text)
 
 
 def make_label(njd_features: Any) -> list[str]:
