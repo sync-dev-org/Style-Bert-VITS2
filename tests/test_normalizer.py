@@ -985,7 +985,7 @@ def test_normalize_text_japanese_unicode_blocks_keep_surface():
 def test_normalize_text_kanji_digit_sequences():
     assert normalize_text("一-二-三") == "1-2-3"
     assert normalize_text("〇三ー一二三四") == "03-1234"
-    assert normalize_text("〇九〇一一一一二二二二") == "09011112222"
+    assert normalize_text("〇一一一一二二二二三") == "0111122223"
     assert normalize_text("一二三さん") == "一二三さん"
 
 
@@ -997,6 +997,37 @@ def test_normalize_text_zero_variant_characters():
 
 def test_normalize_text_digit_space_guard():
     assert normalize_text("5090 32G") == "5090'32G"
+
+
+def test_normalize_text_phone_numbers():
+    assert (
+        normalize_text("03-1234-5678")
+        == "ゼロサン,イチニーサンヨン,ゴーロクナナハチ"
+    )
+    assert (
+        normalize_text("080-4205-7491")
+        == "ゼロハチゼロ,ヨンニーゼロゴー,ナナヨンキューイチ"
+    )
+    assert (
+        normalize_text("0120-982-954")
+        == "ゼロイチニーゼロ,キューハチニ,キューゴーヨン"
+    )
+    assert (
+        normalize_text("お電話は〇三ー一二三四ー五六七八までお願いします。")
+        == "お電話はゼロサン,イチニーサンヨン,ゴーロクナナハチまでお願いします."
+    )
+    assert (
+        normalize_text("連絡先は09011112222です。")
+        == "連絡先はゼロキューゼロ,イチイチイチイチ,ニーニーニーニーです."
+    )
+
+    assert normalize_text("2026年7月7日") == "2026年7月7日"
+    assert normalize_text("13時45分") == "十三時四十五分"
+    assert normalize_text("1,200円") == "1200円"
+    assert normalize_text("バージョン2.5") == "バージョン2.5"
+    assert normalize_text("ABC1-2-3") == "エービーシー1-2-3"
+    assert normalize_text("0312345678") == "0312345678"
+    assert normalize_text("080-123-4567") == "080-123-4567"
 
 
 def test_normalize_text_complex():

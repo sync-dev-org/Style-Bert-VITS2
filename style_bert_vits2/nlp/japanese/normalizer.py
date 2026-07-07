@@ -282,6 +282,43 @@ __KANJI_HYPHEN_CHAIN_PATTERN = re.compile(
     r"(?:[-\u02d7\u2010\u2012\u2013\u2212](?:[一二三四五六七八九〇]+|\d+))+"
 )
 __LONG_KANJI_DIGIT_SEQUENCE_PATTERN = re.compile(r"[一二三四五六七八九〇]{10,}")
+__DIGIT_TO_KATAKANA_MAP: dict[str, str] = {
+    "0": "ゼロ",
+    "1": "イチ",
+    "2": "ニー",
+    "3": "サン",
+    "4": "ヨン",
+    "5": "ゴー",
+    "6": "ロク",
+    "7": "ナナ",
+    "8": "ハチ",
+    "9": "キュー",
+}
+__DIGIT_TO_KATAKANA_SHORT_MAP: dict[str, str] = {
+    "2": "ニ",
+    "5": "ゴ",
+}
+__DIGIT_ZERO_MARU = "マル"
+__PHONE_HYPHENATED_PATTERN = re.compile(
+    r"(?<!\d)"
+    r"(0\d{1,4})"
+    r"-([\d]{1,4})"
+    r"-([\d]{1,4})"
+    r"(?!\d)"
+)
+__PHONE_NO_HYPHEN_PATTERN = re.compile(
+    r"(?<!\d)"
+    r"(?:"
+    r"(0120)(\d{3})(\d{3})"
+    r"|(0800)(\d{3})(\d{4})"
+    r"|(0570)(\d{3})(\d{3})"
+    r"|(0[6-9]0)(\d{4})(\d{4})"
+    r"|(050)(\d{4})(\d{4})"
+    r")"
+    r"(?!\d)"
+)
+__DIGIT_MARKER_SPACE_DIGIT_PATTERN = re.compile(r"(\d)[\u200c\u200d][ \u3000]+(\d)")
+__MARKER_SPACE_PATTERN = re.compile(r"[\u200c\u200d][ \u3000]+")
 
 # 単位の正規化マップ
 # 単位は OpenJTalk 側で変換してくれるものもあるため、単位が1文字で読み間違いが発生しやすい L, m, g, B と、
@@ -1066,6 +1103,8 @@ def __replace_symbols(text: str) -> str:
     except OverflowError:
         pass
 
+    text = __normalize_phone_postal_address_floor(text)
+
     text = __CROSS_MARK_AS_KAKERU_PATTERN.sub("かける", text)
     text = __CROSS_MARK_AS_BATSU_PATTERN.sub("バツ", text)
 
@@ -1076,6 +1115,88 @@ def __replace_symbols(text: str) -> str:
     ## __convert_numbers_to_words() は「¥100」を「100円」と自動で読み替えるが、円記号としてバックスラッシュ (U+005C) が使われているとうまく動作しないため
     ## ref: https://ja.wikipedia.org/wiki/%E5%86%86%E8%A8%98%E5%8F%B7
     text = re.sub(r"\\(?=\d)", "¥", text)
+
+    return text
+
+
+def __normalize_phone_postal_address_floor(text: str) -> str:
+    def digits_to_katakana(digits: str, is_shorten_trailing: bool = False) -> str:
+        result = ""
+        for index, digit in enumerate(digits):
+            if (
+                index == len(digits) - 1
+                and is_shorten_trailing is True
+                and digit in __DIGIT_TO_KATAKANA_SHORT_MAP
+            ):
+                result += __DIGIT_TO_KATAKANA_SHORT_MAP[digit]
+            else:
+                result += __DIGIT_TO_KATAKANA_MAP.get(digit, digit)
+        return result
+
+    def convert_phone_number_hyphenated(match: re.Match[str]) -> str:
+        group1 = match.group(1)
+        group2 = match.group(2)
+        group3 = match.group(3)
+        len1 = len(group1)
+        len2 = len(group2)
+        len3 = len(group3)
+        total_digits = len1 + len2 + len3
+
+        if not (2 <= len1 <= 5 and 1 <= len2 <= 4 and 3 <= len3 <= 4):
+            return match.group(0)
+        if not (8 <= total_digits <= 11):
+            return match.group(0)
+
+        is_mobile_prefix = len1 == 3 and group1[0] == "0" and group1[2] == "0"
+        if is_mobile_prefix is True and (len2 != 4 or len3 != 4):
+            return match.group(0)
+
+        katakana1 = digits_to_katakana(group1, is_shorten_trailing=len1 == 3)
+        katakana2 = digits_to_katakana(group2, is_shorten_trailing=len2 == 3)
+        katakana3 = digits_to_katakana(group3, is_shorten_trailing=len3 == 3)
+
+        return f"{katakana1},{katakana2},{katakana3}"
+
+    def convert_phone_number_no_hyphen(match: re.Match[str]) -> str:
+        for pattern_index in range(5):
+            base = pattern_index * 3 + 1
+            group1 = match.group(base)
+            if group1 is not None:
+                group2 = match.group(base + 1)
+                group3 = match.group(base + 2)
+                katakana1 = digits_to_katakana(group1, is_shorten_trailing=len(group1) == 3)
+                katakana2 = digits_to_katakana(group2, is_shorten_trailing=len(group2) == 3)
+                katakana3 = digits_to_katakana(group3, is_shorten_trailing=len(group3) == 3)
+                return f"{katakana1},{katakana2},{katakana3}"
+
+        return match.group(0)
+
+    _MARKER = "\u200c"
+
+    for hyphen_variant in (
+        "\u02d7",
+        "\u2010",
+        "\u2012",
+        "\u2013",
+        "\u2212",
+    ):
+        text = text.replace(hyphen_variant, "-")
+
+    def convert_phone_hyphenated_with_marker(match: re.Match[str]) -> str:
+        result = convert_phone_number_hyphenated(match)
+        if result != match.group(0):
+            return result + _MARKER
+        return result
+
+    text = __PHONE_HYPHENATED_PATTERN.sub(convert_phone_hyphenated_with_marker, text)
+
+    def convert_phone_no_hyphen_with_marker(match: re.Match[str]) -> str:
+        return convert_phone_number_no_hyphen(match) + _MARKER
+
+    text = __PHONE_NO_HYPHEN_PATTERN.sub(convert_phone_no_hyphen_with_marker, text)
+    text = __DIGIT_MARKER_SPACE_DIGIT_PATTERN.sub(r"\1'\2", text)
+    text = __MARKER_SPACE_PATTERN.sub(",", text)
+    text = text.replace(_MARKER, "")
 
     return text
 
