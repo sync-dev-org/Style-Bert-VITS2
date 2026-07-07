@@ -1030,6 +1030,33 @@ def test_normalize_text_phone_numbers():
     assert normalize_text("080-123-4567") == "080-123-4567"
 
 
+def test_normalize_text_postal_codes():
+    assert normalize_text("〒304-0002") == "郵便番号サンマルヨンのゼロゼロゼロニー"
+    assert normalize_text("〒100-0001") == "郵便番号イチゼロゼロのゼロゼロゼロイチ"
+    assert normalize_text("〒802-0838") == "郵便番号ハチマルニーのゼロハチサンハチ"
+    assert normalize_text("〒 304-0002") == "郵便番号サンマルヨンのゼロゼロゼロニー"
+    assert normalize_text("304-0002") == "サンマルヨンのゼロゼロゼロニー"
+    assert (
+        normalize_text("〒三〇四ー〇〇〇二 茨城県下妻市今泉")
+        == "郵便番号サンマルヨンのゼロゼロゼロニー,茨城県下妻市今泉"
+    )
+    assert (
+        normalize_text("〒３０４−０００２")
+        == "郵便番号サンマルヨンのゼロゼロゼロニー"
+    )
+
+    assert normalize_text("1234-567") == "1234-567"
+    assert normalize_text("123-456") == "123-456"
+    assert normalize_text("12-3456") == "12-3456"
+    assert (
+        normalize_text("03-1234-5678")
+        == "ゼロサン,イチニーサンヨン,ゴーロクナナハチ"
+    )
+    assert normalize_text("2026年7月7日") == "2026年7月7日"
+    assert normalize_text("1,200円") == "1200円"
+    assert normalize_text("バージョン2.5") == "バージョン2.5"
+
+
 def test_normalize_text_complex():
     """複合的なパターンの正規化のテスト"""
     # 日付・時刻・単位を含む文

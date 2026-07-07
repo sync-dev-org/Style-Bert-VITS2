@@ -317,6 +317,8 @@ __PHONE_NO_HYPHEN_PATTERN = re.compile(
     r")"
     r"(?!\d)"
 )
+__POSTAL_CODE_WITH_SYMBOL_PATTERN = re.compile(r"〒\s*(\d{3})-(\d{4})")
+__POSTAL_CODE_PATTERN = re.compile(r"(?<!\d)(?<!\d-)(\d{3})-(\d{4})(?!\d)(?!-\d)")
 __DIGIT_MARKER_SPACE_DIGIT_PATTERN = re.compile(r"(\d)[\u200c\u200d][ \u3000]+(\d)")
 __MARKER_SPACE_PATTERN = re.compile(r"[\u200c\u200d][ \u3000]+")
 
@@ -1120,15 +1122,30 @@ def __replace_symbols(text: str) -> str:
 
 
 def __normalize_phone_postal_address_floor(text: str) -> str:
-    def digits_to_katakana(digits: str, is_shorten_trailing: bool = False) -> str:
+    def digits_to_katakana(
+        digits: str,
+        is_shorten_trailing: bool = False,
+        is_use_maru_for_middle_zero: bool = False,
+    ) -> str:
         result = ""
         for index, digit in enumerate(digits):
+            is_last = index == len(digits) - 1
+            is_first = index == 0
             if (
-                index == len(digits) - 1
+                is_last is True
                 and is_shorten_trailing is True
                 and digit in __DIGIT_TO_KATAKANA_SHORT_MAP
             ):
                 result += __DIGIT_TO_KATAKANA_SHORT_MAP[digit]
+            elif (
+                is_first is False
+                and is_last is False
+                and is_use_maru_for_middle_zero is True
+                and digit == "0"
+                and digits[index - 1] != "0"
+                and digits[index + 1] != "0"
+            ):
+                result += __DIGIT_ZERO_MARU
             else:
                 result += __DIGIT_TO_KATAKANA_MAP.get(digit, digit)
         return result
@@ -1171,6 +1188,15 @@ def __normalize_phone_postal_address_floor(text: str) -> str:
 
         return match.group(0)
 
+    def convert_postal_code_digits(first3: str, last4: str) -> str:
+        is_use_maru = len(first3) == 3 and first3[1] == "0" and first3[2] != "0"
+        katakana_first = digits_to_katakana(
+            first3,
+            is_use_maru_for_middle_zero=is_use_maru,
+        )
+        katakana_last = digits_to_katakana(last4)
+        return f"{katakana_first}の{katakana_last}"
+
     _MARKER = "\u200c"
 
     for hyphen_variant in (
@@ -1182,6 +1208,13 @@ def __normalize_phone_postal_address_floor(text: str) -> str:
     ):
         text = text.replace(hyphen_variant, "-")
 
+    def convert_postal_with_symbol(match: re.Match[str]) -> str:
+        first3 = match.group(1)
+        last4 = match.group(2)
+        return f"郵便番号{convert_postal_code_digits(first3, last4)}{_MARKER}"
+
+    text = __POSTAL_CODE_WITH_SYMBOL_PATTERN.sub(convert_postal_with_symbol, text)
+
     def convert_phone_hyphenated_with_marker(match: re.Match[str]) -> str:
         result = convert_phone_number_hyphenated(match)
         if result != match.group(0):
@@ -1189,6 +1222,13 @@ def __normalize_phone_postal_address_floor(text: str) -> str:
         return result
 
     text = __PHONE_HYPHENATED_PATTERN.sub(convert_phone_hyphenated_with_marker, text)
+
+    def convert_postal_without_symbol(match: re.Match[str]) -> str:
+        first3 = match.group(1)
+        last4 = match.group(2)
+        return f"{convert_postal_code_digits(first3, last4)}{_MARKER}"
+
+    text = __POSTAL_CODE_PATTERN.sub(convert_postal_without_symbol, text)
 
     def convert_phone_no_hyphen_with_marker(match: re.Match[str]) -> str:
         return convert_phone_number_no_hyphen(match) + _MARKER
