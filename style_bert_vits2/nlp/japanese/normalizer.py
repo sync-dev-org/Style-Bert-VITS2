@@ -369,6 +369,11 @@ __ROOM_NUMBER_IMPLICIT_PATTERN = re.compile(
     r"(\d{3,})"
     r"(?!号室|号|[a-zA-Z\d])"
 )
+__FLOOR_PATTERN = re.compile(
+    r"(?<![a-zA-Z])"
+    r"(B)?(\d{1,3})F"
+    r"(?![a-zA-Z])"
+)
 __DIGIT_MARKER_SPACE_DIGIT_PATTERN = re.compile(r"(\d)[\u200c\u200d][ \u3000]+(\d)")
 __MARKER_SPACE_PATTERN = re.compile(r"[\u200c\u200d][ \u3000]+")
 
@@ -1415,6 +1420,13 @@ def __normalize_phone_postal_address_floor(text: str) -> str:
         return f"{prefix_char}'{convert_room_number_digits(digits)}"
 
     text = __ROOM_NUMBER_IMPLICIT_PATTERN.sub(convert_room_number_implicit, text)
+
+    def convert_floor(match: re.Match[str]) -> str:
+        if match.group(1) is not None:
+            return f"地下{match.group(2)}階"
+        return f"{match.group(2)}階"
+
+    text = __FLOOR_PATTERN.sub(convert_floor, text)
 
     def convert_phone_no_hyphen_with_marker(match: re.Match[str]) -> str:
         return convert_phone_number_no_hyphen(match) + _MARKER

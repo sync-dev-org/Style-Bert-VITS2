@@ -1103,6 +1103,24 @@ def test_normalize_text_room_number():
     assert normalize_text("1,200円") == "1200円"
 
 
+def test_normalize_text_floor_notation():
+    assert normalize_text("1F") == "1階"
+    assert normalize_text("13F") == "13階"
+    assert normalize_text("B1F") == "地下1階"
+    assert normalize_text("3Fのカフェ") == "3階のカフェ"
+    assert normalize_text("マルマルビル 13F") == "マルマルビル13階"
+    assert (
+        normalize_text("東京都港区六本木1-2-3 六本木グランドタワー 13F")
+        == "東京都港区六本木1の2の3,六本木グランドタワー13階"
+    )
+
+    assert normalize_text("5GHz") == "5ギガヘルツ"
+    assert normalize_text("UTF-8") == "ユーティーエフエイト"
+    assert normalize_text("PDF") == "ピーディーエフ"
+    assert normalize_text("2026年7月7日") == "2026年7月7日"
+    assert normalize_text("2*3*4は") == "2かける3かける4は"
+
+
 def test_normalize_text_complex():
     """複合的なパターンの正規化のテスト"""
     # 日付・時刻・単位を含む文
