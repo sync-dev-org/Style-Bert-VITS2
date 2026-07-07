@@ -11,86 +11,90 @@ from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import unquote
 
-import GPUtil
-import psutil
-import torch
-import uvicorn
-from fastapi import FastAPI, HTTPException, Query, Request, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
-from scipy.io import wavfile
 
-from config import get_config
-from style_bert_vits2.constants import (
-    DEFAULT_ASSIST_TEXT_WEIGHT,
-    DEFAULT_LENGTH,
-    DEFAULT_LINE_SPLIT,
-    DEFAULT_NOISE,
-    DEFAULT_NOISEW,
-    DEFAULT_SDP_RATIO,
-    DEFAULT_SPLIT_INTERVAL,
-    DEFAULT_STYLE,
-    DEFAULT_STYLE_WEIGHT,
-    Languages,
-)
-from style_bert_vits2.logging import logger
-from style_bert_vits2.nlp import bert_models, onnx_bert_models
-from style_bert_vits2.nlp.japanese import pyopenjtalk_worker as pyopenjtalk
-from style_bert_vits2.nlp.japanese.user_dict import update_dict
-from style_bert_vits2.tts_model import TTSModel, TTSModelHolder
-from style_bert_vits2.utils import torch_device_to_onnx_providers
-
-
-config = get_config()
-ln = config.server_config.language
-
-
-# pyopenjtalk_worker を起動
-## pyopenjtalk_worker は TCP ソケットサーバーのため、ここで起動する
-pyopenjtalk.initialize_worker()
-
-# dict_data/ 以下の辞書データを pyopenjtalk に適用
-update_dict()
-
-
-def raise_validation_error(msg: str, param: str):
-    logger.warning(f"Validation error: {msg}")
-    raise HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        detail=[dict(type="invalid_params", msg=msg, loc=["query", param])],
-    )
-
-
-class AudioResponse(Response):
-    media_type = "audio/wav"
-
-
-loaded_models: list[TTSModel] = []
-
-
-def load_models(model_holder: TTSModelHolder):
-    global loaded_models
-    loaded_models = []
-    for model_name, model_paths in model_holder.model_files_dict.items():
-        model = TTSModel(
-            model_path=model_paths[0],
-            config_path=model_holder.root_dir / model_name / "config.json",
-            style_vec_path=model_holder.root_dir / model_name / "style_vectors.npy",
-            device=model_holder.device,
-        )
-        # 起動時に全てのモデルを読み込むのは時間がかかりメモリを食うのでやめる
-        # model.load()
-        loaded_models.append(model)
+def resolve_server_port(configured_port: int, cli_port: int | None) -> int:
+    if cli_port is not None:
+        return cli_port
+    return configured_port
 
 
 if __name__ == "__main__":
+    import GPUtil
+    import psutil
+    import torch
+    import uvicorn
+    from fastapi import FastAPI, HTTPException, Query, Request, status
+    from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.responses import FileResponse, Response
+    from scipy.io import wavfile
+
+    from config import get_config
+    from style_bert_vits2.constants import (
+        DEFAULT_ASSIST_TEXT_WEIGHT,
+        DEFAULT_LENGTH,
+        DEFAULT_LINE_SPLIT,
+        DEFAULT_NOISE,
+        DEFAULT_NOISEW,
+        DEFAULT_SDP_RATIO,
+        DEFAULT_SPLIT_INTERVAL,
+        DEFAULT_STYLE,
+        DEFAULT_STYLE_WEIGHT,
+        Languages,
+    )
+    from style_bert_vits2.logging import logger
+    from style_bert_vits2.nlp import bert_models, onnx_bert_models
+    from style_bert_vits2.nlp.japanese import pyopenjtalk_worker as pyopenjtalk
+    from style_bert_vits2.nlp.japanese.g2p_utils import g2kata_tone
+    from style_bert_vits2.nlp.japanese.normalizer import normalize_text
+    from style_bert_vits2.nlp.japanese.user_dict import update_dict
+    from style_bert_vits2.tts_model import TTSModel, TTSModelHolder
+    from style_bert_vits2.utils import torch_device_to_onnx_providers
+
+    config = get_config()
+    ln = config.server_config.language
+
+    # pyopenjtalk_worker を起動
+    ## pyopenjtalk_worker は TCP ソケットサーバーのため、ここで起動する
+    pyopenjtalk.initialize_worker()
+
+    # dict_data/ 以下の辞書データを pyopenjtalk に適用
+    update_dict()
+
+    def raise_validation_error(msg: str, param: str):
+        logger.warning(f"Validation error: {msg}")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=[dict(type="invalid_params", msg=msg, loc=["query", param])],
+        )
+
+    class AudioResponse(Response):
+        media_type = "audio/wav"
+
+    loaded_models: list[TTSModel] = []
+
+    def load_models(model_holder: TTSModelHolder):
+        global loaded_models
+        loaded_models = []
+        for model_name, model_paths in model_holder.model_files_dict.items():
+            model = TTSModel(
+                model_path=model_paths[0],
+                config_path=model_holder.root_dir / model_name / "config.json",
+                style_vec_path=model_holder.root_dir / model_name / "style_vectors.npy",
+                device=model_holder.device,
+            )
+            # 起動時に全てのモデルを読み込むのは時間がかかりメモリを食うのでやめる
+            # model.load()
+            loaded_models.append(model)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--cpu", action="store_true", help="Use CPU instead of GPU")
     parser.add_argument(
         "--dir", "-d", type=str, help="Model directory", default=config.assets_root
     )
+    parser.add_argument("--port", type=int, help="Server port", default=None)
     parser.add_argument("--preload_onnx_bert", action="store_true")
     args = parser.parse_args()
+    server_port = resolve_server_port(config.server_config.port, args.port)
 
     if args.cpu:
         device = "cpu"
@@ -343,11 +347,9 @@ if __name__ == "__main__":
             raise_validation_error(f"wav file not found in {path}", "path")
         return FileResponse(path=path, media_type="audio/wav")
 
-    logger.info(f"server listen: http://127.0.0.1:{config.server_config.port}")
-    logger.info(f"API docs: http://127.0.0.1:{config.server_config.port}/docs")
+    logger.info(f"server listen: http://127.0.0.1:{server_port}")
+    logger.info(f"API docs: http://127.0.0.1:{server_port}/docs")
     logger.info(
         f"Input text length limit: {limit}. You can change it in server.limit in config.yml"
     )
-    uvicorn.run(
-        app, port=config.server_config.port, host="0.0.0.0", log_level="warning"
-    )
+    uvicorn.run(app, port=server_port, host="0.0.0.0", log_level="warning")
