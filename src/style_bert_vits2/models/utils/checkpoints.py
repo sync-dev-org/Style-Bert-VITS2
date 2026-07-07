@@ -7,6 +7,9 @@ from typing import Any, Optional, Union
 import torch
 
 from style_bert_vits2.logging import logger
+from style_bert_vits2.models.utils.weight_norm import (
+    migrate_legacy_weight_norm_state_dict,
+)
 
 
 def load_checkpoint(
@@ -32,7 +35,9 @@ def load_checkpoint(
     """
 
     assert os.path.isfile(checkpoint_path)
-    checkpoint_dict = torch.load(checkpoint_path, map_location=device)
+    checkpoint_dict = torch.load(
+        checkpoint_path, map_location=device, weights_only=True
+    )
     iteration = checkpoint_dict["iteration"]
     learning_rate = checkpoint_dict["learning_rate"]
     logger.info(
@@ -52,7 +57,7 @@ def load_checkpoint(
         new_opt_dict["param_groups"][0]["params"] = new_opt_dict_params
         optimizer.load_state_dict(new_opt_dict)  # type: ignore
 
-    saved_state_dict = checkpoint_dict["model"]
+    saved_state_dict = migrate_legacy_weight_norm_state_dict(checkpoint_dict["model"])
     if hasattr(model, "module"):
         state_dict = model.module.state_dict()
     else:
