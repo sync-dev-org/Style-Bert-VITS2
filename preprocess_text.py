@@ -47,11 +47,13 @@ def process_line(
     if len(splitted_line) != 4:
         raise ValueError(f"Invalid line format: {line.strip()}")
     utt, spk, language, text = splitted_line
-    norm_text, phones, tones, word2ph = clean_text(
-        text=text,
-        language=language,  # type: ignore
-        use_jp_extra=use_jp_extra,
-        raise_yomi_error=(yomi_error != "use"),
+    norm_text, phones, tones, word2ph, _sep_text, _sep_kata, _sep_kata_with_joshi = (
+        clean_text(
+            text=text,
+            language=language,  # type: ignore
+            use_jp_extra=use_jp_extra,
+            raise_yomi_error=(yomi_error != "use"),
+        )
     )
     if correct_path:
         utt = str(transcription_path.parent / "wavs" / utt)

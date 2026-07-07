@@ -29,6 +29,7 @@ def extract_bert_feature(
     device: str,
     assist_text: Optional[str] = None,
     assist_text_weight: float = 0.7,
+    sep_text: Optional[list[str]] = None,
 ) -> torch.Tensor:
     """
     テキストから BERT の特徴量を抽出する (PyTorch 推論)
@@ -40,6 +41,7 @@ def extract_bert_feature(
         device (str): 推論に利用するデバイス
         assist_text (Optional[str], optional): 補助テキスト (デフォルト: None)
         assist_text_weight (float, optional): 補助テキストの重み (デフォルト: 0.7)
+        sep_text (Optional[list[str]], optional): 単語単位の単語のリスト (デフォルト: None)
 
     Returns:
         torch.Tensor: BERT の特徴量
@@ -47,6 +49,10 @@ def extract_bert_feature(
 
     if language == Languages.JP:
         from style_bert_vits2.nlp.japanese.bert_feature import extract_bert_feature
+
+        return extract_bert_feature(
+            text, word2ph, device, assist_text, assist_text_weight, sep_text
+        )
     elif language == Languages.EN:
         from style_bert_vits2.nlp.english.bert_feature import extract_bert_feature
     elif language == Languages.ZH:
@@ -64,6 +70,7 @@ def extract_bert_feature_onnx(
     onnx_providers: Sequence[Union[str, tuple[str, dict[str, Any]]]],
     assist_text: Optional[str] = None,
     assist_text_weight: float = 0.7,
+    sep_text: Optional[list[str]] = None,
 ) -> NDArray[Any]:
     """
     テキストから BERT の特徴量を抽出する (ONNX 推論)
@@ -75,6 +82,7 @@ def extract_bert_feature_onnx(
         onnx_providers (list[str]): ONNX 推論で利用する ExecutionProvider (CPUExecutionProvider, CUDAExecutionProvider など)
         assist_text (Optional[str], optional): 補助テキスト (デフォルト: None)
         assist_text_weight (float, optional): 補助テキストの重み (デフォルト: 0.7)
+        sep_text (Optional[list[str]], optional): 単語単位の単語のリスト (デフォルト: None)
 
     Returns:
         NDArray[Any]: BERT の特徴量
@@ -82,6 +90,15 @@ def extract_bert_feature_onnx(
 
     if language == Languages.JP:
         from style_bert_vits2.nlp.japanese.bert_feature import extract_bert_feature_onnx
+
+        return extract_bert_feature_onnx(
+            text,
+            word2ph,
+            onnx_providers,
+            assist_text,
+            assist_text_weight,
+            sep_text,
+        )
     elif language == Languages.EN:
         from style_bert_vits2.nlp.english.bert_feature import extract_bert_feature_onnx
     elif language == Languages.ZH:
@@ -103,7 +120,15 @@ def clean_text(
     language: Languages,
     use_jp_extra: bool = True,
     raise_yomi_error: bool = False,
-) -> tuple[str, list[str], list[int], list[int]]:
+) -> tuple[
+    str,
+    list[str],
+    list[int],
+    list[int],
+    Optional[list[str]],
+    Optional[list[str]],
+    Optional[list[str]],
+]:
     """
     テキストをクリーニングし、音素に変換する
 
@@ -114,7 +139,8 @@ def clean_text(
         raise_yomi_error (bool, optional): False の場合、読めない文字が消えたような扱いとして処理される。Defaults to False.
 
     Returns:
-        tuple[str, list[str], list[int], list[int]]: クリーニングされたテキストと、音素・アクセント・元のテキストの各文字に音素が何個割り当てられるかのリスト
+        tuple[str, list[str], list[int], list[int], list[str] | None, list[str] | None, list[str] | None]:
+            クリーニングされたテキスト、音素、アクセント、word2ph、単語分割情報
     """
 
     # Changed to import inside if condition to avoid unnecessary import
@@ -123,23 +149,31 @@ def clean_text(
         from style_bert_vits2.nlp.japanese.normalizer import normalize_text
 
         norm_text = normalize_text(text)
-        phones, tones, word2ph = g2p(norm_text, use_jp_extra, raise_yomi_error)
+        phones, tones, word2ph, sep_text, sep_kata, sep_kata_with_joshi = g2p(
+            norm_text, use_jp_extra, raise_yomi_error
+        )
     elif language == Languages.EN:
         from style_bert_vits2.nlp.english.g2p import g2p
         from style_bert_vits2.nlp.english.normalizer import normalize_text
 
         norm_text = normalize_text(text)
         phones, tones, word2ph = g2p(norm_text)
+        sep_text = None
+        sep_kata = None
+        sep_kata_with_joshi = None
     elif language == Languages.ZH:
         from style_bert_vits2.nlp.chinese.g2p import g2p
         from style_bert_vits2.nlp.chinese.normalizer import normalize_text
 
         norm_text = normalize_text(text)
         phones, tones, word2ph = g2p(norm_text)
+        sep_text = None
+        sep_kata = None
+        sep_kata_with_joshi = None
     else:
         raise ValueError(f"Language {language} not supported")
 
-    return norm_text, phones, tones, word2ph
+    return norm_text, phones, tones, word2ph, sep_text, sep_kata, sep_kata_with_joshi
 
 
 def clean_text_with_given_phone_tone(
@@ -149,7 +183,15 @@ def clean_text_with_given_phone_tone(
     given_tone: Optional[list[int]] = None,
     use_jp_extra: bool = True,
     raise_yomi_error: bool = False,
-) -> tuple[str, list[str], list[int], list[int]]:
+) -> tuple[
+    str,
+    list[str],
+    list[int],
+    list[int],
+    Optional[list[str]],
+    Optional[list[str]],
+    Optional[list[str]],
+]:
     """
     テキストをクリーニングし、音素に変換する
     変換時、given_phone や given_tone が与えられた場合はそれを調整して使う
@@ -163,15 +205,18 @@ def clean_text_with_given_phone_tone(
         raise_yomi_error (bool, optional): False の場合、読めない文字が消えたような扱いとして処理される。Defaults to False.
 
     Returns:
-        tuple[str, list[str], list[int], list[int]]: クリーニングされたテキストと、音素・アクセント・元のテキストの各文字に音素が何個割り当てられるかのリスト
+        tuple[str, list[str], list[int], list[int], list[str] | None, list[str] | None, list[str] | None]:
+            クリーニングされたテキスト、音素、アクセント、word2ph、単語分割情報
     """
 
     # 与えられたテキストをクリーニング
-    norm_text, phone, tone, word2ph = clean_text(
-        text,
-        language,
-        use_jp_extra=use_jp_extra,
-        raise_yomi_error=raise_yomi_error,
+    norm_text, phone, tone, word2ph, sep_text, sep_kata, sep_kata_with_joshi = (
+        clean_text(
+            text,
+            language,
+            use_jp_extra=use_jp_extra,
+            raise_yomi_error=raise_yomi_error,
+        )
     )
 
     # phone と tone の両方が与えられた場合はそれを使う
@@ -220,7 +265,7 @@ def clean_text_with_given_phone_tone(
             )
         tone = given_tone
 
-    return norm_text, phone, tone, word2ph
+    return norm_text, phone, tone, word2ph, sep_text, sep_kata, sep_kata_with_joshi
 
 
 def cleaned_text_to_sequence(
