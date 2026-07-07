@@ -1075,6 +1075,34 @@ def test_normalize_text_addresses():
     assert normalize_text("ABC1-2-3") == "エービーシー1-2-3"
 
 
+def test_normalize_text_room_number():
+    assert normalize_text("309号室") == "'サンマルキュー号室"
+    assert normalize_text("グリーンコート赤坂409号室") == "グリーンコート赤坂'ヨンマルキュー号室"
+    assert normalize_text("石田ハイツ101") == "石田ハイツ'イチマルイチ"
+    assert normalize_text("〇〇マンション205号") == "マルマルマンション'ニーマルゴ号"
+    assert normalize_text("2-11-3 309号") == "2の11の3のサンマルキュー号"
+    assert (
+        normalize_text("住所は2-11-3 1205号室です")
+        == "住所は2の11の3のイチニーゼロゴ号室です"
+    )
+    assert (
+        normalize_text("東京都港区六本木1-2-3 サクラハイツ604号室")
+        == "東京都港区六本木1の2の3,サクラハイツ'ロクマルヨン号室"
+    )
+
+    assert normalize_text("こだま309号が発車します") == "こだま309号が発車します"
+    assert (
+        normalize_text("東京都港区六本木1-2-3に届いた。こだま309号で帰る")
+        == "東京都港区六本木1の2の3に届いた.こだま309号で帰る"
+    )
+    assert (
+        normalize_text("バージョン1-2-3 beta 309号を確認した")
+        == "バージョン1-2-3ベータ309号を確認した"
+    )
+    assert normalize_text("13時45分") == "十三時四十五分"
+    assert normalize_text("1,200円") == "1200円"
+
+
 def test_normalize_text_complex():
     """複合的なパターンの正規化のテスト"""
     # 日付・時刻・単位を含む文
