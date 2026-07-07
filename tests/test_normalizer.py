@@ -982,6 +982,23 @@ def test_normalize_text_japanese_unicode_blocks_keep_surface():
     assert normalize_text("拡張G𰀀") == "拡張G𰀀"
 
 
+def test_normalize_text_kanji_digit_sequences():
+    assert normalize_text("一-二-三") == "1-2-3"
+    assert normalize_text("〇三ー一二三四") == "03-1234"
+    assert normalize_text("〇九〇一一一一二二二二") == "09011112222"
+    assert normalize_text("一二三さん") == "一二三さん"
+
+
+def test_normalize_text_zero_variant_characters():
+    assert normalize_text("〇〇電鉄") == "マルマル電鉄"
+    assert normalize_text("○○電鉄") == "マルマル電鉄"
+    assert normalize_text("ぶっ◯せ") == "ぶっマルせ"
+
+
+def test_normalize_text_digit_space_guard():
+    assert normalize_text("5090 32G") == "5090'32G"
+
+
 def test_normalize_text_complex():
     """複合的なパターンの正規化のテスト"""
     # 日付・時刻・単位を含む文

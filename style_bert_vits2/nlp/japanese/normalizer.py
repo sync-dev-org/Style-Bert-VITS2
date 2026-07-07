@@ -247,6 +247,42 @@ __SYMBOL_YOMI_MAP = {
 # 記号類の読み正規化パターン
 __SYMBOL_YOMI_PATTERN = re.compile("|".join(re.escape(p) for p in __SYMBOL_YOMI_MAP))
 
+__KANJI_TO_DIGIT_MAP: dict[str, str] = {
+    "一": "1",
+    "二": "2",
+    "三": "3",
+    "四": "4",
+    "五": "5",
+    "六": "6",
+    "七": "7",
+    "八": "8",
+    "九": "9",
+    "〇": "0",
+}
+__KANJI_TO_DIGIT_TABLE = str.maketrans("一二三四五六七八九〇", "1234567890")
+__ZERO_VARIANT_REPLACEMENTS: tuple[tuple[str, str], ...] = (
+    ("○\ufe0f", "〇"),
+    ("○\ufe0e", "〇"),
+    ("○", "〇"),
+    ("◯\ufe0f", "〇"),
+    ("◯\ufe0e", "〇"),
+    ("◯", "〇"),
+    ("⭕\ufe0f", "〇"),
+    ("⭕\ufe0e", "〇"),
+    ("⭕", "〇"),
+    ("⚪\ufe0f", "〇"),
+    ("⚪\ufe0e", "〇"),
+    ("⚪", "〇"),
+)
+__PROLONGED_SOUND_AS_HYPHEN_PATTERN = re.compile(
+    r"(?<=[一二三四五六七八九〇0-9])ー(?=[一二三四五六七八九〇0-9])"
+)
+__KANJI_HYPHEN_CHAIN_PATTERN = re.compile(
+    r"(?:[一二三四五六七八九〇]+|\d+)"
+    r"(?:[-\u02d7\u2010\u2012\u2013\u2212](?:[一二三四五六七八九〇]+|\d+))+"
+)
+__LONG_KANJI_DIGIT_SEQUENCE_PATTERN = re.compile(r"[一二三四五六七八九〇]{10,}")
+
 # 単位の正規化マップ
 # 単位は OpenJTalk 側で変換してくれるものもあるため、単位が1文字で読み間違いが発生しやすい L, m, g, B と、
 # OpenJTalk では変換できない単位、正規化処理で変換しておいた方が実装上都合が良い単位のみ変換する
@@ -534,6 +570,33 @@ __ENGLISH_WORD_WITH_NUMBER_PATTERN = re.compile(
 __ALPHABET_PATTERN = re.compile(r"[a-zA-Z]")
 
 
+def __normalize_kanji_and_separators(text: str) -> str:
+    for old_char, new_char in __ZERO_VARIANT_REPLACEMENTS:
+        text = text.replace(old_char, new_char)
+
+    text = __PROLONGED_SOUND_AS_HYPHEN_PATTERN.sub("-", text)
+    text = __convert_kanji_numeral_sequences(text)
+    text = text.replace("\u3007", "マル")
+
+    return text
+
+
+def __convert_kanji_numeral_sequences(text: str) -> str:
+    def convert_chain_kanji_digits(match: re.Match[str]) -> str:
+        chain = match.group()
+        if not any(char in __KANJI_TO_DIGIT_MAP for char in chain):
+            return chain
+        return chain.translate(__KANJI_TO_DIGIT_TABLE)
+
+    text = __KANJI_HYPHEN_CHAIN_PATTERN.sub(convert_chain_kanji_digits, text)
+    text = __LONG_KANJI_DIGIT_SEQUENCE_PATTERN.sub(
+        lambda match: match.group().translate(__KANJI_TO_DIGIT_TABLE),
+        text,
+    )
+
+    return text
+
+
 def normalize_text(text: str) -> str:
     """
     日本語のテキストを正規化する。
@@ -571,6 +634,8 @@ def normalize_text(text: str) -> str:
     text = jaconv.z2h(
         text, kana=False, digit=True, ascii=True, ignore="\u3000"
     )  # 全角スペースは変換しない
+
+    text = __normalize_kanji_and_separators(text)
 
     # Unicode 正規化前に記号を変換
     # 正規化前でないと ℃ などが unicodedata.normalize() で分割されてしまう
