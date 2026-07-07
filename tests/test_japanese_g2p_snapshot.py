@@ -9,6 +9,7 @@ import pytest
 
 from style_bert_vits2.constants import DEFAULT_BERT_MODEL_PATHS, Languages
 from style_bert_vits2.nlp import bert_models, clean_text_with_given_phone_tone
+from style_bert_vits2.nlp.japanese import g2p as japanese_g2p
 from style_bert_vits2.nlp.japanese import pyopenjtalk_worker as pyopenjtalk
 from style_bert_vits2.nlp.japanese.g2p import adjust_word2ph, g2p, text_to_sep_kata
 from style_bert_vits2.nlp.japanese.normalizer import normalize_text
@@ -177,3 +178,16 @@ def test_adjust_word2ph_fallback_preserves_given_phone_total():
     assert len(adjusted) == 4
     assert sum(adjusted) == 6
     assert all(count >= 1 for count in adjusted)
+
+
+def test_align_tones_allows_sokuon_followed_by_long_mark():
+    aligned = japanese_g2p.__align_tones(
+        ["q", "-", "a"],
+        [("q", 1), ("q", 1), ("a", 0)],
+    )
+
+    assert aligned == [("q", 1), ("-", 0), ("a", 0)]
+
+
+def test_distribute_phone_handles_empty_token():
+    assert japanese_g2p.__distribute_phone(3, 0) == [3]
