@@ -102,9 +102,8 @@ __SYMBOL_YOMI_MAP = {
     "＋": "プラス",
     "➕": "プラス",
     "➖": "マイナス",  # 絵文字以外のハイフンは伸ばす棒と区別がつかないので記述していない
-    "×": "かける",
-    "✖": "かける",
-    "⨯": "かける",
+    # × (U+00D7), ✖ (U+2716), ⨯ (U+2A2F) は文脈依存で「かける」or「バツ」に読み分けるため
+    # __SYMBOL_YOMI_MAP には含めず、__CROSS_MARK_AS_KAKERU_PATTERN / __CROSS_MARK_AS_BATSU_PATTERN で別途処理する
     "÷": "わる",
     "➗": "わる",
     # 等号・不等号
@@ -342,6 +341,19 @@ __UNIT_PATTERN = re.compile(
     r"(?P<suffix>/[hs])?"
     r"(?=($|(?=/([^A-Za-z]|$))|[^/A-Za-z]))"
 )
+# 温度と角度の度数表記を単位変換の前に「度」へ畳む
+__DEGREE_UNIT_PATTERN = re.compile(
+    r"(?P<sign>[+\-−－ー])?\s*"
+    r"(?P<number>[0-9.]*[0-9](?:[eE][-+]?[0-9]+)?)\s*"
+    r"(?P<unit>℃|℉|°\s*[CcFf]|度\s*[CcFf]|°|度)"
+)
+__PAGE_UNIT_PATTERN = re.compile(
+    r"(?<!No\.)(?<!NO\.)(?<!no\.)(?<!ノー)(?<!ノー\.)"
+    r"(?<![A-Za-z0-9/])"
+    r"(?P<number>\d{1,3}(?:,\d{3})*|\d+)\s*"
+    r"(?P<unit>[pP])"
+    r"(?=($|[^/A-Za-z]))"
+)
 
 # 正規化後に残す文字種を表すパターン
 __PUNCTUATION_CLEANUP_PATTERN = re.compile(
@@ -408,6 +420,34 @@ __CURRENCY_MAP = {
 __CURRENCY_PATTERN = re.compile(
     r"([$¥€£₩₹₽₺฿₱₴₫₪₦₡₿﷼₠₢₣₤₥₧₨₭₮₯₰₲₳₵₶₷₸₻₼₾])([0-9.]*[0-9])|([0-9.]*[0-9])([$¥€£₩₹₽₺฿₱₴₫₪₦₡₿﷼₠₢₣₤₥₧₨₭₮₯₰₲₳₵₶₷₸₻₼₾])"
 )
+__CHEMICAL_FORMULA_YOMI_MAP: dict[str, str] = {
+    "CO": "シーオー",
+    "CO2": "シーオーツー",
+    "CH4": "シーエイチフォー",
+    "H2O": "エイチツーオー",
+    "N2": "エヌツー",
+    "NO2": "エヌオーツー",
+    "NH3": "エヌエイチスリー",
+    "O2": "オーツー",
+    "O3": "オースリー",
+    "SO2": "エスオーツー",
+    "HCl": "エイチシーエル",
+    "NaCl": "エヌエーシーエル",
+}
+__CHEMICAL_FORMULA_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9])"
+    + "("
+    + "|".join(
+        re.escape(formula)
+        for formula in sorted(
+            __CHEMICAL_FORMULA_YOMI_MAP.keys(),
+            key=len,
+            reverse=True,
+        )
+    )
+    + ")"
+    + r"(?![A-Za-z0-9])"
+)
 __NUMBER_PATTERN = re.compile(r"[0-9]+(\.[0-9]+)?")
 __NUMBER_WITH_SEPARATOR_PATTERN = re.compile("[0-9]{1,3}(,[0-9]{3})+")
 
@@ -444,6 +484,9 @@ __NUMBER_RANGE_PATTERN = re.compile(
 __NUMBER_MATH_PATTERN = re.compile(
     r"(\d+)\s*([+＋➕\-−－ー➖×✖⨯÷➗*＊])\s*(\d+)\s*=\s*(\d+)"
 )
+__NUMBER_MULTIPLICATION_PATTERN = re.compile(
+    r"(\d+(?:\.\d+)?)\s*([×✖⨯*＊])\s*(\d+(?:\.\d+)?)"
+)
 __NUMBER_COMPARISON_PATTERN = re.compile(r"(\d+)\s*([<＜>＞])\s*(\d+)")
 __YEAR_MONTH_PATTERN = re.compile(r"(?<!\d)(18|19|20|21|22)(\d{2})/([0-1]?\d)(?!\d)")
 __FRACTION_PATTERN = re.compile(r"(\d+)[/／](\d+)")
@@ -453,7 +496,17 @@ __DATE_EXPAND_PATTERN = re.compile(r"\d{2}[-/\.]\d{1,2}[-/\.]\d{1,2}")
 __DATE_PATTERN = re.compile(
     r"(?<!\d)(?:\d{4}[-/\.][0-9]{1,2}[-/\.][0-9]{1,2}|\d{2}[-/\.][0-9]{1,2}[-/\.][0-9]{1,2}|[0-9]{1,2}/[0-9]{1,2}|\d{4}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))(?!\d)"
 )
+__POWER_PATTERN = re.compile(
+    r"(?P<base>[A-Za-z]+|\d+(?:\.\d+)?)?\s*\^\s*"
+    r"(?P<sign>[+\-−－ー]?)(?P<exponent>\d+)"
+)
 __EXPONENT_PATTERN = re.compile(r"(\d+(?:\.\d+)?)[eE]([-+]?\d+)")
+__CROSS_MARK_AS_KAKERU_PATTERN = re.compile(
+    r"(?<=[\u4e00-\u9fff\u3400-\u4dbf\u30a0-\u30ff0-9a-zA-Z])"
+    r"[×✖⨯❌][\ufe0e\ufe0f]?"
+    r"(?=[\u4e00-\u9fff\u3400-\u4dbf\u30a0-\u30ff0-9a-zA-Z])",
+)
+__CROSS_MARK_AS_BATSU_PATTERN = re.compile(r"[×✖⨯❌][\ufe0e\ufe0f]?")
 
 # __convert_english_to_katakana() で使う正規表現パターン
 __ENGLISH_WORD_PATTERN = re.compile(r"[a-zA-Z0-9]")
@@ -681,7 +734,7 @@ def __replace_symbols(text: str) -> str:
         # 読み間違いを防ぐため、数式の間に挟まれた場合にのみ下記の通り読み上げる
         if symbol in ("-", "−", "－", "ー"):
             return "マイナス"
-        if symbol in ("*", "＊"):
+        if symbol in ("*", "＊", "×", "✖", "⨯"):
             return "かける"
         return __SYMBOL_YOMI_MAP.get(symbol, symbol)
 
@@ -698,6 +751,14 @@ def __replace_symbols(text: str) -> str:
         lambda m: f"{m.group(1)}{get_symbol_yomi(m.group(2))}{m.group(3)}イコール{m.group(4)}",
         text,
     )
+    while True:
+        replaced_text = __NUMBER_MULTIPLICATION_PATTERN.sub(
+            lambda m: f"{m.group(1)}{get_symbol_yomi(m.group(2))}{m.group(3)}",
+            text,
+        )
+        if replaced_text == text:
+            break
+        text = replaced_text
     # 比較演算子を処理
     text = __NUMBER_COMPARISON_PATTERN.sub(
         lambda m: f"{m.group(1)}{get_comparison_yomi(m.group(2))}{m.group(3)}", text
@@ -877,6 +938,24 @@ def __replace_symbols(text: str) -> str:
     # 時刻またはアスペクト比パターンの処理（コロンで区切られた時分秒）
     text = __ASPECT_PATTERN.sub(convert_time_or_aspect, text)
 
+    def convert_power(match: re.Match[str]) -> str:
+        base = match.group("base") or ""
+        sign = match.group("sign")
+        exponent = match.group("exponent")
+
+        if base == "" and match.start() > 0:
+            previous_character = text[match.start() - 1]
+            if (
+                __WORD_CHAR_PATTERN.fullmatch(previous_character) is not None
+                or previous_character == "^"
+            ):
+                return match.group(0)
+
+        sign_text = get_symbol_yomi(sign) if sign != "" else ""
+        return f"{base}の{sign_text}{exponent}乗"
+
+    text = __POWER_PATTERN.sub(convert_power, text)
+
     # 指数表記の処理
     ## 稀にランダムな英数字 ID にマッチしたことで OverflowError が発生するが、続行に支障はないため無視する
     try:
@@ -885,6 +964,9 @@ def __replace_symbols(text: str) -> str:
         )
     except OverflowError:
         pass
+
+    text = __CROSS_MARK_AS_KAKERU_PATTERN.sub("かける", text)
+    text = __CROSS_MARK_AS_BATSU_PATTERN.sub("バツ", text)
 
     # 記号類を辞書で置換
     text = __SYMBOL_YOMI_PATTERN.sub(lambda x: __SYMBOL_YOMI_MAP[x.group()], text)
@@ -908,6 +990,25 @@ def __convert_numbers_to_words(text: str) -> str:
     Returns:
         str: 変換されたテキスト
     """
+
+    def convert_degree_unit(match: re.Match[str]) -> str:
+        number = match.group("number")
+        sign = match.group("sign")
+        sign_text = ""
+
+        if sign in {"-", "−", "－", "ー"}:
+            sign_text = "マイナス"
+        elif sign == "+":
+            sign_text = "プラス"
+
+        return f"{sign_text}{number}度"
+
+    def convert_page_unit(match: re.Match[str]) -> str:
+        page_number = match.group("number").replace(",", "")
+        return f"{page_number}ページ"
+
+    res = __DEGREE_UNIT_PATTERN.sub(convert_degree_unit, text)
+    res = __PAGE_UNIT_PATTERN.sub(convert_page_unit, res)
 
     # 単位の変換（平方メートルなどの特殊な単位も含む）
     def convert_unit(match: re.Match[str]) -> str:
@@ -940,7 +1041,7 @@ def __convert_numbers_to_words(text: str) -> str:
             return f"{number}{__UNIT_MAP.get(unit, unit)}"
 
     # 単位の変換
-    res = __UNIT_PATTERN.sub(convert_unit, text)
+    res = __UNIT_PATTERN.sub(convert_unit, res)
 
     # 12,300 のような数字の区切りとしてのカンマを削除
     res = __NUMBER_WITH_SEPARATOR_PATTERN.sub(lambda m: m[0].replace(",", ""), res)
@@ -1102,6 +1203,10 @@ def __convert_english_to_katakana(text: str) -> str:
         # 事前に万が一 word の前後にスペースがあれば除去
         word = word.strip()
         # print(f"word: {word}")
+
+        chemical_formula_yomi = __CHEMICAL_FORMULA_YOMI_MAP.get(word)
+        if chemical_formula_yomi is not None:
+            return chemical_formula_yomi
 
         # 単体の大文字アルファベットは単位や記号として使われるケースが多く、
         # 安易にカタカナ読みすると不自然になりやすいため変換しない
@@ -1404,6 +1509,11 @@ def __convert_english_to_katakana(text: str) -> str:
                 return False
         return True
 
+    text = __CHEMICAL_FORMULA_PATTERN.sub(
+        lambda match: __CHEMICAL_FORMULA_YOMI_MAP[match.group(1)],
+        text,
+    )
+
     # NFKC 処理でいくつかハイフンの変種が U+002D とは別のハイフンである U+2010 に変換されるので、それを通常のハイフンに変換する
     text = text.replace("\u2010", "-")
 
@@ -1657,6 +1767,15 @@ def replace_punctuation(text: str) -> str:
     Returns:
         str: 正規化されたテキスト
     """
+    def remove_unreadable_symbols(match: re.Match[str]) -> str:
+        if (
+            match.start() > 0
+            and match.end() < len(replaced_text)
+            and replaced_text[match.start() - 1].isdigit() is True
+            and replaced_text[match.end()].isdigit() is True
+        ):
+            return "'"
+        return ""
 
     # 句読点を辞書で置換
     replaced_text = __SYMBOL_REPLACE_PATTERN.sub(
@@ -1664,7 +1783,9 @@ def replace_punctuation(text: str) -> str:
     )
 
     # 上述以外の文字を削除
-    replaced_text = __PUNCTUATION_CLEANUP_PATTERN.sub("", replaced_text)
+    replaced_text = __PUNCTUATION_CLEANUP_PATTERN.sub(
+        remove_unreadable_symbols, replaced_text
+    )
 
     return replaced_text
 

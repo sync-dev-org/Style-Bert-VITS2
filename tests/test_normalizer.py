@@ -159,6 +159,11 @@ def test_normalize_text_units():
     assert normalize_text("24s営業") == "24秒営業"
     assert normalize_text("500Kがある") == "500Kがある"
     assert normalize_text("50℃") == "50度"
+    assert normalize_text("5.6°C") == "5.6度"
+    assert normalize_text("98.6°F") == "98.6度"
+    assert normalize_text("180°回転") == "180度回転"
+    assert normalize_text("40p") == "40ページ"
+    assert normalize_text("No.40p") == "ノー40p"
     assert normalize_text("50ms") == "50ミリ秒"
     assert normalize_text("50s") == "50秒"
     assert normalize_text("50ns") == "50ナノ秒"
@@ -496,6 +501,14 @@ def test_normalize_text_symbols():
     assert normalize_text("5-3=2") == "5マイナス3イコール2"
     assert normalize_text("2×3=6") == "2かける3イコール6"
     assert normalize_text("6÷2=3") == "6わる2イコール3"
+    assert normalize_text("2*3*4は") == "2かける3かける4は"
+    assert normalize_text("x^4") == "xの4乗"
+    assert normalize_text("10^-3") == "10のマイナス3乗"
+    assert normalize_text("10^^3") == "10'3"
+    assert normalize_text("×") == "バツ"
+    assert normalize_text("答えは×です") == "答えはバツです"
+    assert normalize_text("1_2") == "1'2"
+    assert normalize_text("A_B") == "AB"
     # 比較演算子
     assert normalize_text("5>3") == "5大なり3"
     assert normalize_text("5≥3") == "5大なりイコール3"
@@ -930,6 +943,9 @@ def test_normalize_text_edge_cases():
         normalize_text("㍉㌔㌢㍍㌘㌧㌃㌶㍑㍗")
         == "ミリキロセンチメートルグラムトンアールヘクタールリットルワット"
     )
+    assert normalize_text("CO2濃度を測定する。") == "シーオーツー濃度を測定する."
+    assert normalize_text("H2Oを加える。") == "エイチツーオーを加える."
+    assert normalize_text("NaCl水溶液を作る。") == "エヌエーシーエル水溶液を作る."
 
 
 def test_normalize_text_complex():
