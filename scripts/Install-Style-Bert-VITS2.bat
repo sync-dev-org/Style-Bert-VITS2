@@ -110,15 +110,15 @@ if !errorlevel! neq 0 ( pause & popd & exit /b !errorlevel! )
 echo --------------------------------------------------
 echo Installing PyTorch...
 echo --------------------------------------------------
-echo Executing: uv pip install "torch<2.4" "torchaudio<2.4" --index-url https://download.pytorch.org/whl/cu118
-uv pip install "torch<2.4" "torchaudio<2.4" --index-url https://download.pytorch.org/whl/cu118
+echo Executing: uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
 if !errorlevel! neq 0 ( pause & popd & exit /b !errorlevel! )
 
 echo --------------------------------------------------
 echo Installing other dependencies...
 echo --------------------------------------------------
-echo Executing: uv pip install -r requirements.txt
-uv pip install -r requirements.txt
+echo Executing: uv pip install -e ".[torch]" --group webui
+uv pip install -e ".[torch]" --group webui
 if !errorlevel! neq 0 ( pause & popd & exit /b !errorlevel! )
 
 echo ----------------------------------------

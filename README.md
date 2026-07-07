@@ -81,8 +81,8 @@ git clone https://github.com/litagin02/Style-Bert-VITS2.git
 cd Style-Bert-VITS2
 uv venv venv
 venv\Scripts\activate
-uv pip install "torch<2.4" "torchaudio<2.4" --index-url https://download.pytorch.org/whl/cu118
-uv pip install -r requirements.txt
+uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+uv pip install -e ".[torch]" --group webui
 python initialize.py  # 必要なモデルとデフォルトTTSモデルをダウンロード
 ```
 最後を忘れずに。

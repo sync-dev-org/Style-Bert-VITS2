@@ -72,6 +72,23 @@ train = [
     "pyannote-audio>=4",
     "soundfile>=0.14",
     "tensorboard>=2.21",
+    "torchaudio",
+]
+# WebUI / dataset tooling (repo checkout usage: app.py, server_*.py,
+# transcription, preprocessing, ONNX export)
+webui = [
+    { include-group = "train" },
+    "faster-whisper>=1.0",
+    "gputil",
+    "gradio>=4.32,<6",
+    "onnx",
+    "onnxconverter-common",
+    "onnxruntime-directml; sys_platform == 'win32'",
+    "onnxruntime-gpu; sys_platform != 'darwin'",
+    "onnxsim-prebuilt",
+    "psutil",
+    "pyloudnorm",
+    "umap-learn",
 ]
 
 [tool.hatch.build.targets.sdist]

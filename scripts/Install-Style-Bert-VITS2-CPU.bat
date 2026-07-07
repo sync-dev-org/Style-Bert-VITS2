@@ -110,8 +110,8 @@ if !errorlevel! neq 0 ( pause & popd & exit /b !errorlevel! )
 echo --------------------------------------------------
 echo Installing dependencies...
 echo --------------------------------------------------
-echo Executing: uv pip install -r requirements-infer.txt
-uv pip install -r requirements-infer.txt
+echo Executing: uv pip install -e ".[torch]" --group webui
+uv pip install -e ".[torch]" --group webui
 if !errorlevel! neq 0 ( pause & popd & exit /b !errorlevel! )
 
 echo ----------------------------------------
