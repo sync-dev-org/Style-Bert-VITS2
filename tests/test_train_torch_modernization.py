@@ -129,7 +129,8 @@ def test_training_scripts_do_not_call_deprecated_sdp_kernel():
 def test_all_torch_load_calls_spell_out_weights_only():
     offenders = []
     for path in REPO_ROOT.rglob("*.py"):
-        if ".venv" in path.parts or "__pycache__" in path.parts:
+        parts = path.relative_to(REPO_ROOT).parts
+        if any(part.startswith(".") for part in parts) or "__pycache__" in parts:
             continue
         tree = ast.parse(path.read_text())
         for node in ast.walk(tree):
