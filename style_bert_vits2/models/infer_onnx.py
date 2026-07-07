@@ -46,14 +46,16 @@ def get_text_onnx(
     NDArray[Any], NDArray[Any], NDArray[Any], NDArray[Any], NDArray[Any], NDArray[Any]
 ]:
     use_jp_extra = hps.version.endswith("JP-Extra")
-    norm_text, phone, tone, word2ph = clean_text_with_given_phone_tone(
-        text,
-        language_str,
-        given_phone=given_phone,
-        given_tone=given_tone,
-        use_jp_extra=use_jp_extra,
-        # 推論時のみ呼び出されるので、raise_yomi_error は False に設定
-        raise_yomi_error=False,
+    norm_text, phone, tone, word2ph, sep_text, _sep_kata, _sep_kata_with_joshi = (
+        clean_text_with_given_phone_tone(
+            text,
+            language_str,
+            given_phone=given_phone,
+            given_tone=given_tone,
+            use_jp_extra=use_jp_extra,
+            # 推論時のみ呼び出されるので、raise_yomi_error は False に設定
+            raise_yomi_error=False,
+        )
     )
     phone, tone, language = cleaned_text_to_sequence(phone, tone, language_str)
 
@@ -71,6 +73,7 @@ def get_text_onnx(
         onnx_providers,
         assist_text,
         assist_text_weight,
+        sep_text,
     )
     del word2ph
     assert bert_ori.shape[-1] == len(phone), phone

@@ -8,9 +8,9 @@ from typing import Any
 import pytest
 
 from style_bert_vits2.constants import DEFAULT_BERT_MODEL_PATHS, Languages
-from style_bert_vits2.nlp import bert_models
+from style_bert_vits2.nlp import bert_models, clean_text_with_given_phone_tone
 from style_bert_vits2.nlp.japanese import pyopenjtalk_worker as pyopenjtalk
-from style_bert_vits2.nlp.japanese.g2p import g2p, text_to_sep_kata
+from style_bert_vits2.nlp.japanese.g2p import adjust_word2ph, g2p, text_to_sep_kata
 from style_bert_vits2.nlp.japanese.normalizer import normalize_text
 from style_bert_vits2.nlp.japanese.user_dict import update_dict
 
@@ -95,8 +95,12 @@ def _pyopenjtalk_provider_version() -> str:
 
 def _build_case_snapshot(case: dict[str, str]) -> dict[str, Any]:
     normalized_text = normalize_text(case["text"])
-    sep_text, sep_kata = text_to_sep_kata(normalized_text)
-    phones, tones, word2ph = g2p(normalized_text)
+    sep_text, sep_kata, _sep_kata_with_joshi = text_to_sep_kata(normalized_text)
+    phones, tones, word2ph, g2p_sep_text, g2p_sep_kata, _g2p_sep_kata_with_joshi = g2p(
+        normalized_text
+    )
+    assert g2p_sep_text == sep_text
+    assert g2p_sep_kata == sep_kata
 
     return {
         "id": case["id"],
@@ -126,3 +130,50 @@ def test_japanese_g2p_snapshot():
 
     expected = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
     assert actual == expected
+
+
+def test_japanese_g2p_returns_sep_kata_with_joshi():
+    normalized_text = normalize_text("鉛筆を置きます。")
+
+    sep_text, sep_kata, sep_kata_with_joshi = text_to_sep_kata(normalized_text)
+    phones, tones, word2ph, g2p_sep_text, g2p_sep_kata, g2p_sep_kata_with_joshi = g2p(
+        normalized_text
+    )
+
+    assert g2p_sep_text == sep_text
+    assert g2p_sep_kata == sep_kata
+    assert g2p_sep_kata_with_joshi == sep_kata_with_joshi
+    assert "".join(sep_text) == normalized_text
+    assert len(phones) == len(tones) == sum(word2ph)
+    assert len(sep_kata_with_joshi) < len(sep_kata)
+
+
+def test_clean_text_with_given_phone_tone_returns_sep_metadata():
+    (
+        normalized_text,
+        phones,
+        tones,
+        word2ph,
+        sep_text,
+        sep_kata,
+        sep_kata_with_joshi,
+    ) = clean_text_with_given_phone_tone("鉛筆を置きます。", Languages.JP)
+
+    assert "".join(sep_text) == normalized_text
+    assert len(phones) == len(tones) == sum(word2ph)
+    assert len(sep_text) == len(sep_kata)
+    assert len(sep_kata_with_joshi) < len(sep_kata)
+
+
+def test_adjust_word2ph_fallback_preserves_given_phone_total():
+    adjusted = adjust_word2ph(
+        [1, 1, 1, 1],
+        ["_", "a", "b", "_"],
+        ["_", "a", "b", "c", "d", "_"],
+    )
+
+    assert adjusted[0] == 1
+    assert adjusted[-1] == 1
+    assert len(adjusted) == 4
+    assert sum(adjusted) == 6
+    assert all(count >= 1 for count in adjusted)
