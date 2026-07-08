@@ -13,8 +13,13 @@
 
 ## 進行中 (常に高々 1)
 
-- 訓練経路の torch 現行化 (訓練込み近代化。Ada / Blackwell 両世代対応の GPU 要件は [REQUIREMENTS.md](REQUIREMENTS.md) 対応環境を参照)
+- ONNX エクスポートの復旧と AIVM 系統の削除 ([features/onnx-export-restoration.md](features/onnx-export-restoration.md))
+
+## 実機検証待ち
+
+- 訓練経路の torch 現行化 — 実装済み。Ada / Blackwell 実機での短時間訓練 smoke のみ残 (完遂時に完了へ移動。GPU 要件は [REQUIREMENTS.md](REQUIREMENTS.md) 対応環境を参照)
 
 ## 次候補 (未確定)
 
-- ONNX エクスポート系統の再検討
+- ONNX 推論の GPU 実行 (onnxruntime-gpu CUDA EP の optional path 化)
+- TensorRT 対応 + dynamo exporter 移行 (experimental)
