@@ -25,12 +25,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import re
 import time
-import uuid
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import BinaryIO, cast
+from typing import cast
 
 import onnx
 import torch
@@ -53,45 +51,6 @@ from style_bert_vits2.models.models_jp_extra import (
 from style_bert_vits2.tts_model import TTSModel
 
 
-def generate_aivm_metadata(
-    hyper_parameters_file: BinaryIO,
-    style_vectors_file: BinaryIO,
-    model_file_name: str,
-    model_uuid: uuid.UUID,
-):
-    try:
-        import aivmlib
-        from aivmlib.schemas.aivm_manifest import ModelArchitecture
-    except ImportError:
-        raise ImportError(
-            "aivmlib is not installed. Please install it using `pip install aivmlib`."
-        )
-
-    # AIVM メタデータを生成
-    metadata = aivmlib.generate_aivm_metadata(
-        # 実際に JP-Extra かどうかはハイパーパラメータの値を元に自動判定されるので、ここでは JP-Extra を指定
-        ModelArchitecture.StyleBertVITS2JPExtra,
-        hyper_parameters_file,
-        style_vectors_file,
-    )
-
-    # モデルファイル名からエポック数とステップ数を抽出
-    epoch_match = re.search(r"e(\d{2,})", model_file_name)  # "e" の後ろに2桁以上の数字
-    step_match = re.search(r"s(\d{2,})", model_file_name)  # "s" の後ろに2桁以上の数字
-
-    # エポック数を設定
-    if epoch_match:
-        metadata.manifest.training_epochs = int(epoch_match.group(1))
-    # ステップ数を設定
-    if step_match:
-        metadata.manifest.training_steps = int(step_match.group(1))
-
-    # UUID を設定
-    metadata.manifest.uuid = model_uuid
-
-    return metadata
-
-
 if __name__ == "__main__":
     start_time = time.time()
     parser = ArgumentParser()
@@ -102,16 +61,6 @@ if __name__ == "__main__":
         "--force-convert",
         action="store_true",
         help="Already converted models will be overwritten",
-    )
-    parser.add_argument(
-        "--aivm",
-        action="store_true",
-        help="Generate AIVM file from Safetensors model",
-    )
-    parser.add_argument(
-        "--aivmx",
-        action="store_true",
-        help="Generate AIVMX file from ONNX model",
     )
     args = parser.parse_args()
 
@@ -132,8 +81,6 @@ if __name__ == "__main__":
         onnx_optimized_model_path = model_path.parent / f"{model_path.stem}.onnx"
         config_path = model_path.parent / "config.json"
         style_vec_path = model_path.parent / "style_vectors.npy"
-        aivm_path = model_path.parent / f"{model_path.stem}.aivm"
-        aivmx_path = model_path.parent / f"{model_path.stem}.aivmx"
         assert model_path.exists(), "Model file does not exist"
         assert config_path.exists(), "Config file does not exist"
         assert style_vec_path.exists(), "Style vector file does not exist"
@@ -277,6 +224,8 @@ if __name__ == "__main__":
                         "noise_scale_w",
                     ],
                     output_names=["output"],
+                    dynamo=False,
+                    opset_version=20,
                     dynamic_axes={
                         "x_tst": {0: "batch_size", 1: "x_tst_max_length"},
                         "x_tst_lengths": {0: "batch_size"},
@@ -372,6 +321,8 @@ if __name__ == "__main__":
                         "noise_scale_w",
                     ],
                     output_names=["output"],
+                    dynamo=False,
+                    opset_version=20,
                     dynamic_axes={
                         "x_tst": {0: "batch_size", 1: "x_tst_max_length"},
                         "x_tst_lengths": {0: "batch_size"},
@@ -409,47 +360,3 @@ if __name__ == "__main__":
             print("[bold cyan]Optimized model info:[/bold cyan]")
             model_info.print_simplifying_info(onnx_model, simplified_onnx_model)
             print(Rule(characters="=", style=Style(color="blue")))
-
-        # AIVM/AIVMX ファイルを生成
-        if args.aivm or args.aivmx:
-            try:
-                import aivmlib
-            except ImportError:
-                raise ImportError(
-                    "aivmlib is not installed. Please install it using `pip install aivmlib`."
-                )
-
-            # 共通の UUID を生成
-            model_uuid = uuid.uuid4()
-
-            # AIVM メタデータを生成
-            with config_path.open("rb") as hyper_parameters_file:
-                with style_vec_path.open("rb") as style_vectors_file:
-                    aivm_metadata = generate_aivm_metadata(
-                        hyper_parameters_file,
-                        style_vectors_file,
-                        model_path.name,
-                        model_uuid,
-                    )
-
-            # AIVM ファイルを生成
-            if args.aivm and (not aivm_path.exists() or args.force_convert):
-                print("[bold cyan]Generating AIVM file...[/bold cyan]")
-                print(Rule(characters="=", style=Style(color="blue")))
-                with model_path.open("rb") as safetensors_file:
-                    new_aivm_file_content = aivmlib.write_aivm_metadata(safetensors_file, aivm_metadata)  # fmt: skip
-                    with aivm_path.open("wb") as f:
-                        f.write(new_aivm_file_content)
-                print(f"[bold green]Generated AIVM file: {aivm_path}[/bold green]")
-                print(Rule(characters="=", style=Style(color="blue")))
-
-            # AIVMX ファイルを生成
-            if args.aivmx and (not aivmx_path.exists() or args.force_convert):
-                print("[bold cyan]Generating AIVMX file...[/bold cyan]")
-                print(Rule(characters="=", style=Style(color="blue")))
-                with onnx_optimized_model_path.open("rb") as onnx_file:
-                    new_aivmx_file_content = aivmlib.write_aivmx_metadata(onnx_file, aivm_metadata)  # fmt: skip
-                    with aivmx_path.open("wb") as f:
-                        f.write(new_aivmx_file_content)
-                print(f"[bold green]Generated AIVMX file: {aivmx_path}[/bold green]")
-                print(Rule(characters="=", style=Style(color="blue")))

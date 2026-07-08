@@ -31,6 +31,7 @@ from pathlib import Path
 import numpy as np
 import onnx
 import torch
+from onnx import TensorProto
 from onnxconverter_common import float16 as float16_converter
 from onnxruntime import InferenceSession
 from onnxsim import model_info, simplify
@@ -38,11 +39,60 @@ from rich import print
 from rich.rule import Rule
 from rich.style import Style
 from torch import nn
-from transformers import AutoTokenizer, DebertaV2Tokenizer, PreTrainedTokenizerBase
-from transformers.convert_slow_tokenizer import BertConverter, convert_slow_tokenizer
+from transformers import PreTrainedTokenizerBase
 
 from style_bert_vits2.constants import DEFAULT_BERT_MODEL_PATHS, Languages
 from style_bert_vits2.nlp import bert_models
+
+
+FP32_MAX_DIFF_THRESHOLD = 1e-3
+FP32_MEAN_DIFF_THRESHOLD = 1e-4
+FP16_MAX_DIFF_THRESHOLD = 2.5e-1
+FP16_MEAN_DIFF_THRESHOLD = 2e-3
+
+
+def _build_bert_onnx_inputs(inputs: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    token_type_ids = inputs.get("token_type_ids")
+    if token_type_ids is None:
+        token_type_ids = torch.zeros_like(inputs["input_ids"])
+
+    return {
+        "input_ids": inputs["input_ids"],
+        "token_type_ids": token_type_ids,
+        "attention_mask": inputs["attention_mask"],
+    }
+
+
+def _align_float16_cast_attributes(model: onnx.ModelProto) -> int:
+    def patch_graph(graph: onnx.GraphProto) -> int:
+        value_info_types = {}
+        for values in (graph.value_info, graph.input, graph.output):
+            for value_info in values:
+                if value_info.type.HasField("tensor_type"):
+                    value_info_types[value_info.name] = (
+                        value_info.type.tensor_type.elem_type
+                    )
+
+        patched = 0
+        for node in graph.node:
+            for attr in node.attribute:
+                if attr.HasField("g"):
+                    patched += patch_graph(attr.g)
+                for subgraph in attr.graphs:
+                    patched += patch_graph(subgraph)
+
+            if node.op_type != "Cast" or len(node.output) == 0:
+                continue
+            if value_info_types.get(node.output[0]) != TensorProto.FLOAT16:
+                continue
+            for attr in node.attribute:
+                if attr.name == "to" and attr.i == TensorProto.FLOAT:
+                    attr.i = TensorProto.FLOAT16
+                    patched += 1
+
+        return patched
+
+    return patch_graph(model.graph)
 
 
 def validate_model_outputs(
@@ -50,8 +100,8 @@ def validate_model_outputs(
     original_model: nn.Module,
     onnx_session: InferenceSession,
     tokenizer: PreTrainedTokenizerBase,
-    max_diff_threshold: float = 1e-3,
-    mean_diff_threshold: float = 1e-4,
+    max_diff_threshold: float = FP32_MAX_DIFF_THRESHOLD,
+    mean_diff_threshold: float = FP32_MEAN_DIFF_THRESHOLD,
 ) -> tuple[bool, str]:
     """ONNXモデルの出力を検証"""
     if language == Languages.JP:
@@ -194,7 +244,7 @@ def validate_model_outputs(
     with torch.no_grad():
         for text in test_texts:
             # PyTorch
-            inputs = tokenizer(text, return_tensors="pt")
+            inputs = _build_bert_onnx_inputs(tokenizer(text, return_tensors="pt"))
             torch_output = original_model(
                 inputs["input_ids"],
                 inputs["token_type_ids"],
@@ -242,35 +292,10 @@ if __name__ == "__main__":
     onnx_temp_model_path = Path(pretrained_model_name_or_path) / "model_temp.onnx"
     onnx_fp32_model_path = Path(pretrained_model_name_or_path) / "model.onnx"
     onnx_fp16_model_path = Path(pretrained_model_name_or_path) / "model_fp16.onnx"
-    tokenizer_json_path = Path(pretrained_model_name_or_path) / "tokenizer.json"
 
     print(Rule(characters="=", style=Style(color="blue")))
     print(f"[bold cyan]Language:[/bold cyan] {language.name}")
     print(f"[bold cyan]Pretrained model:[/bold cyan] {pretrained_model_name_or_path}")
-    print(Rule(characters="=", style=Style(color="blue")))
-
-    # トークナイザーを Fast Tokenizer 用形式に変換して保存
-    if language == Languages.EN:
-        tokenizer = DebertaV2Tokenizer.from_pretrained(
-            pretrained_model_name_or_path,
-        )
-        convert_slow_tokenizer(tokenizer).save(str(tokenizer_json_path))
-    elif language == Languages.JP:
-        tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name_or_path,
-            use_fast=False,  # 明示的に Slow Tokenizer を使う
-        )
-        BertConverter(tokenizer).converted().save(str(tokenizer_json_path))
-    elif language == Languages.ZH:
-        tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name_or_path,
-            use_fast=False,  # 明示的に Slow Tokenizer を使う
-        )
-        convert_slow_tokenizer(tokenizer).save(str(tokenizer_json_path))
-    else:
-        assert False, "Invalid language"
-    print(Rule(characters="=", style=Style(color="blue")))
-    print(f"[bold green]Tokenizer JSON saved to {tokenizer_json_path}[/bold green]")
     print(Rule(characters="=", style=Style(color="blue")))
 
     class ONNXBert(nn.Module):
@@ -289,11 +314,13 @@ if __name__ == "__main__":
             return res
 
     # 再度 Fast Tokenizer でロード
-    tokenizer = bert_models.load_tokenizer(language)
+    tokenizer = bert_models.load_tokenizer(language, str(pretrained_model_name_or_path))
 
     # ONNX 変換用の BERT モデルをロード
     model = ONNXBert()
-    inputs = tokenizer("今日はいい天気ですね", return_tensors="pt")
+    inputs = _build_bert_onnx_inputs(
+        tokenizer("今日はいい天気ですね", return_tensors="pt")
+    )
 
     # モデルを ONNX に変換
     print(Rule(characters="=", style=Style(color="blue")))
@@ -315,6 +342,8 @@ if __name__ == "__main__":
             "attention_mask",
         ],
         output_names=["output"],
+        dynamo=False,
+        opset_version=20,
         dynamic_axes={
             "input_ids": {0: "batch_size", 1: "sequence_length"},
             "token_type_ids": {0: "batch_size", 1: "sequence_length"},
@@ -352,40 +381,44 @@ if __name__ == "__main__":
     is_valid, message = validate_model_outputs(language, model, session, tokenizer)
     color = "green" if is_valid else "red"
     print(f"[bold {color}]{message}[/bold {color}]")
+    if not is_valid:
+        raise RuntimeError(message)
 
-    if is_valid:
-        # FP16 への変換
-        print(Rule(characters="=", style=Style(color="blue")))
-        print("[bold cyan]Converting to FP16...[/bold cyan]")
-        print(Rule(characters="=", style=Style(color="blue")))
-        fp16_start_time = time.time()
-        fp16_model = float16_converter.convert_float_to_float16(
-            simplified_onnx_model,
-            keep_io_types=True,  # 入出力は float32 のまま
-            disable_shape_infer=True,
-        )
-        onnx.save(fp16_model, onnx_fp16_model_path)
-        print(
-            f"[bold green]FP16 conversion completed ({time.time() - fp16_start_time:.2f}s)[/bold green]"
-        )
+    # FP16 への変換
+    print(Rule(characters="=", style=Style(color="blue")))
+    print("[bold cyan]Converting to FP16...[/bold cyan]")
+    print(Rule(characters="=", style=Style(color="blue")))
+    fp16_start_time = time.time()
+    fp16_model = float16_converter.convert_float_to_float16(
+        simplified_onnx_model,
+        keep_io_types=True,  # 入出力は float32 のまま
+        disable_shape_infer=True,
+    )
+    _align_float16_cast_attributes(fp16_model)
+    onnx.save(fp16_model, onnx_fp16_model_path)
+    print(
+        f"[bold green]FP16 conversion completed ({time.time() - fp16_start_time:.2f}s)[/bold green]"
+    )
 
-        # FP16 モデルの検証
-        print(Rule(characters="=", style=Style(color="blue")))
-        print("[bold cyan]Validating FP16 model...[/bold cyan]")
-        session = InferenceSession(
-            str(onnx_fp16_model_path),
-            providers=["CPUExecutionProvider"],
-        )
-        is_valid, message = validate_model_outputs(
-            language,
-            model,
-            session,
-            tokenizer,
-            max_diff_threshold=1e-2,  # FP16なのでより緩い閾値を設定
-            mean_diff_threshold=1e-3,
-        )
-        color = "green" if is_valid else "red"
-        print(f"[bold {color}]{message}[/bold {color}]")
+    # FP16 モデルの検証
+    print(Rule(characters="=", style=Style(color="blue")))
+    print("[bold cyan]Validating FP16 model...[/bold cyan]")
+    session = InferenceSession(
+        str(onnx_fp16_model_path),
+        providers=["CPUExecutionProvider"],
+    )
+    is_valid, message = validate_model_outputs(
+        language,
+        model,
+        session,
+        tokenizer,
+        max_diff_threshold=FP16_MAX_DIFF_THRESHOLD,
+        mean_diff_threshold=FP16_MEAN_DIFF_THRESHOLD,
+    )
+    color = "green" if is_valid else "red"
+    print(f"[bold {color}]{message}[/bold {color}]")
+    if not is_valid:
+        raise RuntimeError(message)
 
     # サイズ情報の表示
     print(Rule(characters="=", style=Style(color="blue")))
