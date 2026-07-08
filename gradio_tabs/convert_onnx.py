@@ -27,7 +27,7 @@ def call_convert_onnx(
 
 initial_md = """
 safetensors形式のモデルをONNX形式に変換します。
-このONNXモデルは対応外部ライブラリで利用できます。例えば [AIVM Generator](https://aivm-generator.aivis-project.com/) でさらにAIVM形式・AIVMX形式に変換すると [AivisSpeech](https://aivis-project.com/) で利用できます。
+このONNXモデルは、ONNX形式に対応した外部ライブラリで利用できます。
 
 **変換には5分以上ほどの時間がかかります**。進捗状況はターミナルのログを参照してください。
 
