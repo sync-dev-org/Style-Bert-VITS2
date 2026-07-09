@@ -54,6 +54,12 @@ Documentation = "https://github.com/sync-dev-org/Style-Bert-VITS2#readme"
 Issues = "https://github.com/sync-dev-org/Style-Bert-VITS2/issues"
 Source = "https://github.com/sync-dev-org/Style-Bert-VITS2"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "gpu: requires a GPU-backed execution provider or CUDA device",
+]
+
 [tool.hatch.version]
 source = "vcs"
 
