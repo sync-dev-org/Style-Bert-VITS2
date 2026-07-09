@@ -6,10 +6,24 @@ TODO: server_editor.pyと統合する?
 import argparse
 import os
 import sys
+from collections.abc import Callable
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import unquote
+
+from style_bert_vits2.constants import (
+    DEFAULT_ASSIST_TEXT_WEIGHT,
+    DEFAULT_LENGTH,
+    DEFAULT_LINE_SPLIT,
+    DEFAULT_NOISE,
+    DEFAULT_NOISEW,
+    DEFAULT_SDP_RATIO,
+    DEFAULT_SPLIT_INTERVAL,
+    DEFAULT_STYLE,
+    DEFAULT_STYLE_WEIGHT,
+    Languages,
+)
 
 
 def resolve_server_port(configured_port: int, cli_port: int | None) -> int:
@@ -18,47 +32,45 @@ def resolve_server_port(configured_port: int, cli_port: int | None) -> int:
     return configured_port
 
 
-if __name__ == "__main__":
+def load_models(model_holder: Any) -> list[Any]:
+    from style_bert_vits2.tts_model import TTSModel
+
+    loaded_models = []
+    for model_name, model_paths in model_holder.model_files_dict.items():
+        model = TTSModel(
+            model_path=model_paths[0],
+            config_path=model_holder.root_dir / model_name / "config.json",
+            style_vec_path=model_holder.root_dir / model_name / "style_vectors.npy",
+            device=model_holder.device,
+        )
+        # 起動時に全てのモデルを読み込むのは時間がかかりメモリを食うのでやめる
+        # model.load()
+        loaded_models.append(model)
+    return loaded_models
+
+
+def create_app(
+    model_holder: Any,
+    loaded_models: list[Any],
+    language: Languages | str = Languages.JP,
+    limit: int | None = 100,
+    allow_origins: list[str] | None = None,
+    load_models_func: Callable[[Any], list[Any]] = load_models,
+):
     import GPUtil
     import psutil
     import torch
-    import uvicorn
     from fastapi import FastAPI, HTTPException, Query, Request, status
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import FileResponse, Response
     from scipy.io import wavfile
 
-    from config import get_config
-    from style_bert_vits2.constants import (
-        DEFAULT_ASSIST_TEXT_WEIGHT,
-        DEFAULT_LENGTH,
-        DEFAULT_LINE_SPLIT,
-        DEFAULT_NOISE,
-        DEFAULT_NOISEW,
-        DEFAULT_SDP_RATIO,
-        DEFAULT_SPLIT_INTERVAL,
-        DEFAULT_STYLE,
-        DEFAULT_STYLE_WEIGHT,
-        Languages,
-    )
     from style_bert_vits2.logging import logger
-    from style_bert_vits2.nlp import bert_models, onnx_bert_models
-    from style_bert_vits2.nlp.japanese import pyopenjtalk_worker as pyopenjtalk
     from style_bert_vits2.nlp.japanese.g2p_utils import g2kata_tone
     from style_bert_vits2.nlp.japanese.normalizer import normalize_text
-    from style_bert_vits2.nlp.japanese.user_dict import update_dict
-    from style_bert_vits2.tts_model import TTSModel, TTSModelHolder
-    from style_bert_vits2.utils import torch_device_to_onnx_providers
 
-    config = get_config()
-    ln = config.server_config.language
-
-    # pyopenjtalk_worker を起動
-    ## pyopenjtalk_worker は TCP ソケットサーバーのため、ここで起動する
-    pyopenjtalk.initialize_worker()
-
-    # dict_data/ 以下の辞書データを pyopenjtalk に適用
-    update_dict()
+    if limit is not None and limit < 1:
+        limit = None
 
     def raise_validation_error(msg: str, param: str):
         logger.warning(f"Validation error: {msg}")
@@ -70,82 +82,22 @@ if __name__ == "__main__":
     class AudioResponse(Response):
         media_type = "audio/wav"
 
-    loaded_models: list[TTSModel] = []
-
-    def load_models(model_holder: TTSModelHolder):
-        global loaded_models
-        loaded_models = []
-        for model_name, model_paths in model_holder.model_files_dict.items():
-            model = TTSModel(
-                model_path=model_paths[0],
-                config_path=model_holder.root_dir / model_name / "config.json",
-                style_vec_path=model_holder.root_dir / model_name / "style_vectors.npy",
-                device=model_holder.device,
-            )
-            # 起動時に全てのモデルを読み込むのは時間がかかりメモリを食うのでやめる
-            # model.load()
-            loaded_models.append(model)
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--cpu", action="store_true", help="Use CPU instead of GPU")
-    parser.add_argument(
-        "--dir", "-d", type=str, help="Model directory", default=config.assets_root
-    )
-    parser.add_argument("--port", type=int, help="Server port", default=None)
-    parser.add_argument("--preload_onnx_bert", action="store_true")
-    args = parser.parse_args()
-    server_port = resolve_server_port(config.server_config.port, args.port)
-
-    if args.cpu:
-        device = "cpu"
-    else:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    # 事前に BERT モデル/トークナイザーをロードしておく
-    ## ここでロードしなくても必要になった際に自動ロードされるが、時間がかかるため事前にロードしておいた方が体験が良い
-    ## 英語や中国語で音声合成するユースケースは限られていることから、VRAM 節約のため日本語の BERT モデル/トークナイザーのみロードする
-    bert_models.load_model(Languages.JP, device_map=device)
-    bert_models.load_tokenizer(Languages.JP)
-    # VRAM 節約のため、既定では ONNX 版 BERT モデル/トークナイザーは事前ロードしない
-    if args.preload_onnx_bert:
-        onnx_bert_models.load_model(
-            Languages.JP, onnx_providers=torch_device_to_onnx_providers(device)
-        )
-        onnx_bert_models.load_tokenizer(Languages.JP)
-
-    model_dir = Path(args.dir)
-    model_holder = TTSModelHolder(
-        model_dir, device, torch_device_to_onnx_providers(device)
-    )
-    if len(model_holder.model_names) == 0:
-        logger.error(f"Models not found in {model_dir}.")
-        sys.exit(1)
-
-    logger.info("Loading models...")
-    load_models(model_holder)
-
-    limit = config.server_config.limit
-    if limit < 1:
-        limit = None
-    else:
-        logger.info(
-            f"The maximum length of the text is {limit}. If you want to change it, modify config.yml. Set limit to -1 to remove the limit."
-        )
     app = FastAPI()
-    allow_origins = config.server_config.origins
     if allow_origins:
         logger.warning(
-            f"CORS allow_origins={config.server_config.origins}. If you don't want, modify config.yml"
+            f"CORS allow_origins={allow_origins}. If you don't want, modify config.yml"
         )
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=config.server_config.origins,
+            allow_origins=allow_origins,
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
         )
     # app.logger = logger
     # ↑効いていなさそう。loggerをどうやって上書きするかはよく分からなかった。
+
+    loaded_models_state = loaded_models
 
     @app.api_route("/voice", methods=["GET", "POST"], response_class=AudioResponse)
     async def voice(
@@ -182,7 +134,7 @@ if __name__ == "__main__":
             DEFAULT_LENGTH,
             description="話速。基準は1で大きくするほど音声は長くなり読み上げが遅まる",
         ),
-        language: Languages = Query(ln, description="textの言語"),
+        language: Languages = Query(language, description="textの言語"),
         auto_split: bool = Query(DEFAULT_LINE_SPLIT, description="改行で分けて生成"),
         split_interval: float = Query(
             DEFAULT_SPLIT_INTERVAL, description="分けた場合に挟む無音の長さ（秒）"
@@ -231,7 +183,7 @@ if __name__ == "__main__":
                 )
             model_id = model_ids[0]
 
-        model = loaded_models[model_id]
+        model = loaded_models_state[model_id]
         if speaker_name is None:
             if speaker_id not in model.id2spk.keys():
                 raise_validation_error(
@@ -279,7 +231,7 @@ if __name__ == "__main__":
         """ロードされたモデル情報の取得"""
 
         result: dict[str, dict[str, Any]] = dict()
-        for model_id, model in enumerate(loaded_models):
+        for model_id, model in enumerate(loaded_models_state):
             result[str(model_id)] = {
                 "config_path": model.config_path,
                 "model_path": model.model_path,
@@ -293,8 +245,9 @@ if __name__ == "__main__":
     @app.post("/models/refresh")
     def refresh():
         """モデルをパスに追加/削除した際などに読み込ませる"""
+        nonlocal loaded_models_state
         model_holder.refresh()
-        load_models(model_holder)
+        loaded_models_state = load_models_func(model_holder)
         return get_loaded_models_info()
 
     @app.get("/status")
@@ -347,9 +300,91 @@ if __name__ == "__main__":
             raise_validation_error(f"wav file not found in {path}", "path")
         return FileResponse(path=path, media_type="audio/wav")
 
+    return app
+
+
+def run_server() -> None:
+    import torch
+    import uvicorn
+
+    from config import get_config
+    from style_bert_vits2.logging import logger
+    from style_bert_vits2.nlp import bert_models, onnx_bert_models
+    from style_bert_vits2.nlp.japanese import pyopenjtalk_worker as pyopenjtalk
+    from style_bert_vits2.nlp.japanese.user_dict import update_dict
+    from style_bert_vits2.tts_model import TTSModelHolder
+    from style_bert_vits2.utils import torch_device_to_onnx_providers
+
+    config = get_config()
+    ln = config.server_config.language
+
+    # pyopenjtalk_worker を起動
+    ## pyopenjtalk_worker は TCP ソケットサーバーのため、ここで起動する
+    pyopenjtalk.initialize_worker()
+
+    # dict_data/ 以下の辞書データを pyopenjtalk に適用
+    update_dict()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--cpu", action="store_true", help="Use CPU instead of GPU")
+    parser.add_argument(
+        "--dir", "-d", type=str, help="Model directory", default=config.assets_root
+    )
+    parser.add_argument("--port", type=int, help="Server port", default=None)
+    parser.add_argument("--preload_onnx_bert", action="store_true")
+    args = parser.parse_args()
+    server_port = resolve_server_port(config.server_config.port, args.port)
+
+    if args.cpu:
+        device = "cpu"
+    else:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # 事前に BERT モデル/トークナイザーをロードしておく
+    ## ここでロードしなくても必要になった際に自動ロードされるが、時間がかかるため事前にロードしておいた方が体験が良い
+    ## 英語や中国語で音声合成するユースケースは限られていることから、VRAM 節約のため日本語の BERT モデル/トークナイザーのみロードする
+    bert_models.load_model(Languages.JP, device_map=device)
+    bert_models.load_tokenizer(Languages.JP)
+    # VRAM 節約のため、既定では ONNX 版 BERT モデル/トークナイザーは事前ロードしない
+    if args.preload_onnx_bert:
+        onnx_bert_models.load_model(
+            Languages.JP, onnx_providers=torch_device_to_onnx_providers(device)
+        )
+        onnx_bert_models.load_tokenizer(Languages.JP)
+
+    model_dir = Path(args.dir)
+    model_holder = TTSModelHolder(
+        model_dir, device, torch_device_to_onnx_providers(device)
+    )
+    if len(model_holder.model_names) == 0:
+        logger.error(f"Models not found in {model_dir}.")
+        sys.exit(1)
+
+    logger.info("Loading models...")
+    loaded_models = load_models(model_holder)
+
+    limit = config.server_config.limit
+    if limit < 1:
+        limit = None
+    else:
+        logger.info(
+            f"The maximum length of the text is {limit}. If you want to change it, modify config.yml. Set limit to -1 to remove the limit."
+        )
+    app = create_app(
+        model_holder=model_holder,
+        loaded_models=loaded_models,
+        language=ln,
+        limit=limit,
+        allow_origins=config.server_config.origins,
+    )
+
     logger.info(f"server listen: http://127.0.0.1:{server_port}")
     logger.info(f"API docs: http://127.0.0.1:{server_port}/docs")
     logger.info(
         f"Input text length limit: {limit}. You can change it in server.limit in config.yml"
     )
     uvicorn.run(app, port=server_port, host="0.0.0.0", log_level="warning")
+
+
+if __name__ == "__main__":
+    run_server()
