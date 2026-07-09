@@ -14,7 +14,7 @@
 
 ## 進行中 (常に高々 1)
 
-- なし (次着手はユーザー合意で確定する)
+- テスト構造の整備 ([features/test-structure-overhaul.md](features/test-structure-overhaul.md))
 
 ## 実機検証待ち
 
