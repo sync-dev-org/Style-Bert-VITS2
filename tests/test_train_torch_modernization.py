@@ -1,8 +1,11 @@
+# ruff: noqa: E402, I001
 import ast
 import warnings
 from pathlib import Path
 
-import torch
+import pytest
+
+torch = pytest.importorskip("torch", reason="requires the torch optional dependency")
 
 from mel_processing import mel_spectrogram_torch, spectrogram_torch
 from style_bert_vits2.models import models, models_jp_extra, modules
