@@ -12,10 +12,11 @@
 - pyproject 内の上流残置設定の掃除 (未使用 hatch envs / coverage 設定の撤去、sdist only-include の `.vscode` 除去、ruff 設定の `[tool.ruff.lint]` 節への移設)
 - ONNX エクスポートの復旧と AIVM 系統の削除 ([features/onnx-export-restoration.md](features/onnx-export-restoration.md))
 - テスト構造の整備 ([features/test-structure-overhaul.md](features/test-structure-overhaul.md))
+- テストカバレッジの拡張 ([features/test-coverage-expansion.md](features/test-coverage-expansion.md))
 
 ## 進行中 (常に高々 1)
 
-- テストカバレッジの拡張 ([features/test-coverage-expansion.md](features/test-coverage-expansion.md))
+- なし (次着手はユーザー合意で確定する)
 
 ## 実機検証待ち
 
