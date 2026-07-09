@@ -39,6 +39,7 @@ dependencies = [
     "pypinyin",
     "pyworld-prebuilt",
     "safetensors",
+    "sentencepiece>=0.2",
     "transformers",
 ]
 
