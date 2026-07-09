@@ -1,142 +1,191 @@
+from __future__ import annotations
+
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any, Literal
 
+import numpy as np
 import pytest
 from scipy.io import wavfile
 
 from style_bert_vits2.constants import BASE_DIR, Languages
-from style_bert_vits2.logging import logger
-from style_bert_vits2.tts_model import TTSModelHolder
+from style_bert_vits2.tts_model import TTSModelHolder, TTSModelInfo
+from tests.conftest import (
+    requires_cuda,
+    requires_onnx_provider,
+    requires_python_package,
+)
 
 
-def synthesize(
-    inference_type: Literal["torch", "onnx"] = "torch",
-    device: str = "cpu",
-    onnx_providers: Sequence[tuple[str, dict[str, Any]]] = [
-        ("CPUExecutionProvider", {"arena_extend_strategy": "kSameAsRequested"}),
-    ],
+@dataclass(frozen=True)
+class SynthesisCase:
+    inference_type: Literal["torch", "onnx"]
+    device: str
+    onnx_providers: Sequence[tuple[str, dict[str, Any]]]
+
+
+CPU_ONNX_PROVIDER = (
+    "CPUExecutionProvider",
+    {"arena_extend_strategy": "kSameAsRequested"},
+)
+CUDA_ONNX_PROVIDER = (
+    "CUDAExecutionProvider",
+    {
+        "arena_extend_strategy": "kSameAsRequested",
+        "cudnn_conv_algo_search": "DEFAULT",
+    },
+)
+DIRECTML_ONNX_PROVIDER = ("DmlExecutionProvider", {"device_id": 0})
+COREML_ONNX_PROVIDER = ("CoreMLExecutionProvider", {})
+
+SYNTHESIS_CASES = [
+    pytest.param(
+        SynthesisCase("torch", "cpu", [CPU_ONNX_PROVIDER]),
+        marks=[requires_python_package("torch", "PyTorch synthesis")],
+        id="torch-cpu",
+    ),
+    pytest.param(
+        SynthesisCase("torch", "cuda", [CPU_ONNX_PROVIDER]),
+        marks=[
+            pytest.mark.gpu,
+            requires_python_package("torch", "CUDA synthesis"),
+            requires_cuda(),
+        ],
+        id="torch-cuda",
+    ),
+    pytest.param(
+        SynthesisCase("onnx", "cpu", [CPU_ONNX_PROVIDER]),
+        marks=[requires_onnx_provider("CPUExecutionProvider")],
+        id="onnx-cpu",
+    ),
+    pytest.param(
+        SynthesisCase("onnx", "cpu", [CUDA_ONNX_PROVIDER]),
+        marks=[
+            pytest.mark.gpu,
+            requires_onnx_provider("CUDAExecutionProvider"),
+        ],
+        id="onnx-cuda",
+    ),
+    pytest.param(
+        SynthesisCase("onnx", "cpu", [DIRECTML_ONNX_PROVIDER]),
+        marks=[
+            pytest.mark.gpu,
+            requires_onnx_provider("DmlExecutionProvider"),
+        ],
+        id="onnx-directml",
+    ),
+    pytest.param(
+        SynthesisCase("onnx", "cpu", [COREML_ONNX_PROVIDER]),
+        marks=[
+            pytest.mark.gpu,
+            requires_onnx_provider("CoreMLExecutionProvider"),
+            pytest.mark.xfail(
+                strict=False,
+                reason=(
+                    "CoreMLExecutionProvider has a known GatherND zero-element "
+                    "dynamic-shape limitation in the SDP flow"
+                ),
+            ),
+        ],
+        id="onnx-coreml",
+    ),
+]
+TARGET_MODEL_NAMES = ("koharune-ami", "amitaro")
+AUDIO_SILENCE_THRESHOLD = 1
+SAMPLE_TEXTS = [
+    "こんにちは、初めまして。あなたの名前はなんていうの？",
+    "桜の樹の下には屍体が埋まっている！これは信じていいことなんだよ。",
+    "あなたがいなくなって、私は一人になっちゃって、泣いちゃいそうなほど悲しい。",
+    "音声合成は、機械学習を活用して、テキストから人の声を再現する技術です。この技術は、言語の構造を解析し、それに基づいて音声を生成します。",
+]
+
+
+def _target_style_params() -> list[pytest.ParameterSet]:
+    holder = TTSModelHolder(BASE_DIR / "model_assets", "cpu", [CPU_ONNX_PROVIDER])
+    params = [
+        pytest.param(model_info.name, style, id=f"{model_info.name}-{style}")
+        for model_info in holder.models_info
+        if model_info.name in TARGET_MODEL_NAMES
+        for style in model_info.styles
+    ]
+    if params:
+        return params
+
+    return [
+        pytest.param(
+            "",
+            "",
+            marks=pytest.mark.skip(reason="音声合成モデルが見つかりませんでした。"),
+            id="no-target-model",
+        )
+    ]
+
+
+def _find_model_info(holder: TTSModelHolder, model_name: str) -> TTSModelInfo:
+    for model_info in holder.models_info:
+        if model_info.name == model_name:
+            return model_info
+    raise AssertionError(f"Target synthesis model {model_name!r} disappeared")
+
+
+def _select_model_file(
+    model_info: TTSModelInfo, inference_type: Literal["torch", "onnx"]
+) -> str:
+    suffix = ".safetensors" if inference_type == "torch" else ".onnx"
+    for model_file in model_info.files:
+        if model_file.endswith(suffix) and not model_file.startswith("."):
+            return model_file
+    pytest.skip(
+        f'音声合成モデル "{model_info.name}" の {suffix} モデルファイルが見つかりませんでした。'
+    )
+
+
+def _assert_audio_matches_model(sample_rate: int, audio_data: np.ndarray, expected_sample_rate: int) -> None:
+    assert sample_rate == expected_sample_rate
+    assert audio_data.size > 0
+    assert np.max(np.abs(audio_data.astype(np.int64))) > AUDIO_SILENCE_THRESHOLD
+
+
+@pytest.mark.parametrize("model_name,style", _target_style_params())
+@pytest.mark.parametrize("synthesis_case", SYNTHESIS_CASES)
+def test_synthesize_generates_non_silent_audio(
+    tmp_path, synthesis_case: SynthesisCase, model_name: str, style: str
 ):
-
-    # 音声合成モデルが配置されていれば、音声合成を実行
-    model_holder = TTSModelHolder(BASE_DIR / "model_assets", device, onnx_providers)
-    if len(model_holder.models_info) > 0:
-
-        # "koharune-ami" または "amitaro" モデルを探す
-        for model_info in model_holder.models_info:
-            if model_info.name == "koharune-ami" or model_info.name == "amitaro":
-
-                # Safetensors 形式または ONNX 形式のモデルファイルに絞り込む
-                if inference_type == "torch":
-                    model_files = [
-                        f
-                        for f in model_info.files
-                        if f.endswith(".safetensors") and not f.startswith(".")
-                    ]
-                else:
-                    model_files = [
-                        f
-                        for f in model_info.files
-                        if f.endswith(".onnx") and not f.startswith(".")
-                    ]
-                if len(model_files) == 0:
-                    pytest.skip(
-                        f'音声合成モデル "{model_info.name}" のモデルファイルが見つかりませんでした。'
-                    )
-
-                # モデルをロード
-                model = model_holder.get_model(model_info.name, model_files[0])
-                model.load()
-
-                # ロードされた InferenceSession の ExecutionProvider が一致するか確認
-                # 一致しない場合、指定された ExecutionProvider で推論できない状態
-                if inference_type == "onnx":
-                    assert model.onnx_session is not None
-                    assert model.onnx_session.get_providers()[0] == onnx_providers[0][0]
-
-                # すべてのスタイルに対して音声合成を実行
-                for style in model_info.styles:
-                    logger.info(f"Testing style: {style}")
-
-                    # テストに使用するサンプルテキスト
-                    sample_texts = [
-                        "こんにちは、初めまして。あなたの名前はなんていうの？",
-                        "桜の樹の下には屍体が埋まっている！これは信じていいことなんだよ。",
-                        "あなたがいなくなって、私は一人になっちゃって、泣いちゃいそうなほど悲しい。",
-                        "音声合成は、機械学習を活用して、テキストから人の声を再現する技術です。この技術は、言語の構造を解析し、それに基づいて音声を生成します。",
-                    ]
-
-                    # 各サンプルテキストに対して音声合成を実行
-                    for i, text in enumerate(sample_texts):
-
-                        # 音声合成を実行
-                        sample_rate, audio_data = model.infer(
-                            text,
-                            # 言語 (JP, EN, ZH / JP-Extra モデルの場合は JP のみ)
-                            language=Languages.JP,
-                            # 話者 ID (音声合成モデルに複数の話者が含まれる場合のみ必須、単一話者のみの場合は 0)
-                            speaker_id=0,
-                            # テンポの緩急 (0.0 〜 1.0)
-                            sdp_ratio=0.4,
-                            # スタイル (Neutral, Happy など)
-                            style=style,
-                            # スタイルの強さ (0.0 〜 100.0)
-                            style_weight=2.0,
-                        )
-
-                        # 音声データを保存
-                        (BASE_DIR / f"tests/wavs/{model_info.name}").mkdir(exist_ok=True, parents=True)  # fmt: skip
-                        wav_file_path = BASE_DIR / f"tests/wavs/{model_info.name}/{style}_{i+1:02d}.wav"  # fmt: skip
-                        with open(wav_file_path, "wb") as f:
-                            wavfile.write(f, sample_rate, audio_data)
-
-                        # 音声データが保存されたことを確認
-                        assert wav_file_path.exists()
-
-                # モデルをアンロード
-                model.unload()
-    else:
-        pytest.skip("音声合成モデルが見つかりませんでした。")
-
-
-def test_synthesize_cpu():
-    synthesize(inference_type="torch", device="cpu")
-
-
-def test_synthesize_cuda():
-    synthesize(inference_type="torch", device="cuda")
-
-
-def test_synthesize_onnx_cpu():
-    synthesize(
-        inference_type="onnx",
-        onnx_providers=[
-            ("CPUExecutionProvider", {"arena_extend_strategy": "kSameAsRequested"}),
-        ],
+    holder = TTSModelHolder(
+        BASE_DIR / "model_assets",
+        synthesis_case.device,
+        synthesis_case.onnx_providers,
     )
+    model_info = _find_model_info(holder, model_name)
+    model_file = _select_model_file(model_info, synthesis_case.inference_type)
+    model = holder.get_model(model_info.name, model_file)
+    try:
+        model.load()
+        if synthesis_case.inference_type == "onnx":
+            assert model.onnx_session is not None
+            assert (
+                model.onnx_session.get_providers()[0]
+                == synthesis_case.onnx_providers[0][0]
+            )
 
+        expected_sample_rate = model.hyper_parameters.data.sampling_rate
+        for index, text in enumerate(SAMPLE_TEXTS, start=1):
+            sample_rate, audio_data = model.infer(
+                text,
+                language=Languages.JP,
+                speaker_id=0,
+                sdp_ratio=0.4,
+                style=style,
+                style_weight=2.0,
+            )
+            _assert_audio_matches_model(sample_rate, audio_data, expected_sample_rate)
 
-def test_synthesize_onnx_cuda():
-    synthesize(
-        inference_type="onnx",
-        onnx_providers=[
-            ("CUDAExecutionProvider", {"arena_extend_strategy": "kSameAsRequested", "cudnn_conv_algo_search": "DEFAULT"}),  # fmt: skip
-        ],
-    )
+            wav_file_path = tmp_path / model_info.name / style / f"{index:02d}.wav"
+            wav_file_path.parent.mkdir(parents=True, exist_ok=True)
+            wavfile.write(wav_file_path, sample_rate, audio_data)
+            written_sample_rate, written_audio_data = wavfile.read(wav_file_path)
 
-
-def test_synthesize_onnx_directml():
-    synthesize(
-        inference_type="onnx",
-        onnx_providers=[
-            ("DmlExecutionProvider", {"device_id": 0}),
-        ],
-    )
-
-
-def test_synthesize_onnx_coreml():
-    synthesize(
-        inference_type="onnx",
-        onnx_providers=[
-            ("CoreMLExecutionProvider", {}),
-        ],
-    )
+            assert written_sample_rate == sample_rate
+            assert written_audio_data.shape == audio_data.shape
+    finally:
+        model.unload()

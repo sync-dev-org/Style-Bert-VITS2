@@ -1,4 +1,7 @@
-import torch
+# ruff: noqa: E402, I001
+import pytest
+
+torch = pytest.importorskip("torch", reason="requires the torch optional dependency")
 
 from style_bert_vits2.models.training import (
     autocast,

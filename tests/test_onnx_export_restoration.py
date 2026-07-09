@@ -1,8 +1,11 @@
+# ruff: noqa: E402, I001
 import ast
 from pathlib import Path
 
-import onnx
-import torch
+import pytest
+
+onnx = pytest.importorskip("onnx", reason="requires the onnx optional dependency")
+torch = pytest.importorskip("torch", reason="requires the torch optional dependency")
 from onnx import TensorProto, helper
 
 

@@ -1,7 +1,9 @@
+# ruff: noqa: E402, I001
 import atexit
 
 import pytest
-import torch
+
+torch = pytest.importorskip("torch", reason="requires the torch optional dependency")
 
 from style_bert_vits2.constants import DEFAULT_BERT_MODEL_PATHS, Languages
 from style_bert_vits2.nlp import bert_models, clean_text, extract_bert_feature

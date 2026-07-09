@@ -1,6 +1,10 @@
+# ruff: noqa: I001
 from pathlib import Path
 
+import pytest
 import yaml
+
+pytest.importorskip("torch", reason="requires the torch optional dependency")
 
 from config import Server_config
 from server_fastapi import resolve_server_port
