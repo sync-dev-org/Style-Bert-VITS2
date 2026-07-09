@@ -15,7 +15,7 @@
 
 ## 進行中 (常に高々 1)
 
-- なし (次着手はユーザー合意で確定する)
+- テストカバレッジの拡張 ([features/test-coverage-expansion.md](features/test-coverage-expansion.md))
 
 ## 実機検証待ち
 
