@@ -39,10 +39,13 @@ def test_mel_processing_matches_pre_migration_reference():
         )
         mel = mel_spectrogram_torch(fixture["input"], **fixture["mel_params"])
 
+    # atol allows ULP-level STFT kernel drift across torch releases
+    # (e.g. 2.12 -> 2.13 shifts single elements by ~1.4e-6); functional
+    # regressions move the spectrogram by orders of magnitude more.
     torch.testing.assert_close(
-        spectrogram, fixture["expected_spectrogram"], atol=1e-6, rtol=0
+        spectrogram, fixture["expected_spectrogram"], atol=1e-5, rtol=0
     )
-    torch.testing.assert_close(mel, fixture["expected_mel"], atol=1e-6, rtol=0)
+    torch.testing.assert_close(mel, fixture["expected_mel"], atol=1e-5, rtol=0)
     scoped_warnings = [
         warning
         for warning in caught
