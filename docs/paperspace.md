@@ -28,7 +28,7 @@ git clone https://github.com/litagin02/Style-Bert-VITS2.git
 環境構築（デフォルトはPyTorch 1.x系、Python 3.9の模様）
 ```bash
 cd /storage/sbv2/Style-Bert-VITS2
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128 && pip install -e ".[torch]" --group webui
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu129 && pip install -e ".[torch]" --group webui
 ```
 事前学習済みモデル等のダウンロード、またパスを`/notebooks/`以下のものに設定
 ```bash

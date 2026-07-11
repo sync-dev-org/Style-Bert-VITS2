@@ -54,6 +54,22 @@ Documentation = "https://github.com/sync-dev-org/Style-Bert-VITS2#readme"
 Issues = "https://github.com/sync-dev-org/Style-Bert-VITS2/issues"
 Source = "https://github.com/sync-dev-org/Style-Bert-VITS2"
 
+[[tool.uv.index]]
+name = "pytorch-cu129"
+url = "https://download.pytorch.org/whl/cu129"
+explicit = true
+
+# Keep every torch-family package on the same CUDA index: mixing PyPI and
+# CUDA-index builds pulls mismatched CUDA runtimes (e.g. a CUDA 13 torchaudio
+# next to a cu129 torch) and breaks imports with missing libcudart.
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu129", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torchaudio = [
+    { index = "pytorch-cu129", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [

@@ -7,7 +7,7 @@ git clone https://github.com/litagin02/Style-Bert-VITS2.git
 cd Style-Bert-VITS2
 python -m venv venv
 venv\Scripts\activate
-pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu129
 pip install -e ".[torch]" --group webui
 ```
 
