@@ -26,3 +26,4 @@ commit / merge の前に、diff と commit message を上記の観点で確認�
 - 要件正典: `docs/REQUIREMENTS.md` — 確定済み要件とスコープ境界
 - 計画正典: `docs/ROADMAP.md` — 計画の現在地 snapshot。feature 完遂 commit と同時に更新する
 - feature 仕様: `docs/features/<name>.md` — 着手時に 1 枚起こす。受入条件 (番号付き・挙動ベース) がテストの導出元になる
+- 挙動仕様正典: `docs/spec/` — コードベースから逆算した現状挙動の仕様 (入口は `docs/spec/README.md`)。挙動を変える commit と同時に該当 spec を更新する
