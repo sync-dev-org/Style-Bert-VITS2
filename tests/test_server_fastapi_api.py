@@ -14,13 +14,15 @@ pytest.importorskip("GPUtil", reason="requires the GPUtil optional dependency")
 pytest.importorskip("psutil", reason="requires the psutil optional dependency")
 pytest.importorskip("torch", reason="requires the torch optional dependency")
 
+import numpy as np
 from fastapi.testclient import TestClient
 
 from style_bert_vits2.constants import BASE_DIR, DEFAULT_BERT_MODEL_PATHS, Languages
+from style_bert_vits2.models.hyper_parameters import HyperParameters
 from style_bert_vits2.nlp import bert_models
 from style_bert_vits2.nlp.japanese import pyopenjtalk_worker as pyopenjtalk
 from style_bert_vits2.nlp.japanese.user_dict import update_dict
-from style_bert_vits2.tts_model import TTSModelHolder
+from style_bert_vits2.tts_model import TTSModel, TTSModelHolder
 from style_bert_vits2.utils import torch_device_to_onnx_providers
 
 
@@ -113,6 +115,38 @@ def _model_holder_with_assets():
         return holder
 
     pytest.skip("model_assets contains no TTS model assets")
+
+
+class SingleDummyModelHolder(EmptyModelHolder):
+    model_names = ["dummy"]
+
+
+def test_voice_returns_400_for_effectively_empty_text():
+    from server_fastapi import create_app
+
+    # 実効テキスト空の検証は実モデルファイルのロード前に行われるため、
+    # モデルファイルが存在しない TTSModel でも API 層の変換を検証できる
+    model = TTSModel(
+        model_path=Path("dummy.safetensors"),
+        config_path=HyperParameters(),
+        style_vec_path=np.zeros((1, 256), dtype=np.float32),
+        device="cpu",
+    )
+    app = create_app(
+        model_holder=SingleDummyModelHolder(),
+        loaded_models=[model],
+        language=Languages.JP,
+        limit=100,
+        allow_origins=[],
+    )
+    client = TestClient(app)
+
+    response = client.post("/voice", params={"text": "\n"})
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail[0]["type"] == "invalid_params"
+    assert detail[0]["loc"] == ["query", "text"]
 
 
 def test_voice_returns_non_empty_wav_when_model_assets_exist():

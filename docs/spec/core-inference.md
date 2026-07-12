@@ -211,6 +211,8 @@ holder が保持するキャッシュは 1 個だけである。
 
 これらの数値引数は `TTSModel.infer()` 自体では範囲を制限しない。`speaker_id` と `style` の有効範囲も事前検証せず、辞書 lookup または model 実行時の例外として現れる。
 
+`text` は冒頭で実効テキスト (改行で分割し空文字要素を除いた行の集合) を検証し、空の場合は model のロード前に `EmptyEffectiveTextError` (`ValueError` の subclass) を送出する。
+
 ### style vector
 
 保存済み style を使う場合、次の式で vector を作る。
@@ -241,7 +243,7 @@ PyTorch と ONNX の両経路は、テキスト処理層から normalized text�
 
 - 行間には `int(data.sampling_rate * split_interval)` 個の 0 sample を挿入する (`data.sampling_rate` は config 由来)。
 - 分割経路は `given_phone` と `given_tone` を下位推論へ渡さない。
-- 空文字または空行だけの入力は推論結果 list が空になり、`numpy.concatenate()` が `ValueError` を送出する。
+- 空文字または空行だけの入力は、分割経路へ入る前の実効テキスト検証で `EmptyEffectiveTextError` になる (「引数」節を参照)。
 - `line_split=False` の場合だけ `given_phone` / `given_tone` を下位推論へ渡す。
 
 ### PyTorch と ONNX の分岐
@@ -307,7 +309,7 @@ new_f0 = pitch_scale * voiced_f0_mean
 - `int16` はそのまま返す。
 - その他の dtype は `ValueError` になる。
 
-全 sample が 0 の floating-point 波形では最大絶対値も 0 になるため、正規化時に 0 除算が発生する。返却値は `(hyper_parameters.data.sampling_rate, int16 の一次元 NumPy 配列)` である。
+全 sample が 0 の floating-point 波形は正規化せず、全 0 の `int16` 無音としてそのまま変換する。返却値は `(hyper_parameters.data.sampling_rate, int16 の一次元 NumPy 配列)` である。
 
 ## ログ
 
@@ -319,6 +321,7 @@ model load / unload、推論開始・完了、null model 加算、checkpoint key
 - `num_styles` と `style2id` 件数、または style vector 件数が一致しない場合は `TTSModel` 生成時に `ValueError` になる。
 - 未知の model 名・model path は `TTSModelHolder.get_model()` が `ValueError` にする。
 - 未知の style 名は style lookup の `KeyError` になる。
+- 実効テキスト (空行を除いた行) が空の入力は、推論前に `EmptyEffectiveTextError` (`ValueError` の subclass) になる。
 - JP-Extra model への非 JP 言語指定は `ValueError` になる。
 - PyTorch model の未対応拡張子は load 時に `ValueError` になる。
 - ONNX provider list が空なら load 時に assertion error になる。
@@ -341,5 +344,14 @@ model load / unload、推論開始・完了、null model 加算、checkpoint key
   - ONNX の実 provider 選択
 - `tests/test_server_fastapi_api.py`
   - API 層から `TTSModelHolder` を利用する際の adapter 境界
+- `tests/test_tts_model_line_split.py`
+  - 改行分割時の行間無音長が config の `data.sampling_rate` に従うこと (PyTorch / ONNX 両経路)
+- `tests/test_tts_model_edge_inputs.py`
+  - 実効テキスト空の入力に対する `EmptyEffectiveTextError`
+  - 全ゼロ float 波形の 16-bit 変換が無音になること
+- `tests/test_synthesizer_construction.py`
+  - `use_spk_conditioned_encoder=False` / `gin_channels=0` での `SynthesizerTrn` 構築 (通常 / JP-Extra)
+- `tests/test_constants.py`
+  - `DEFAULT_ASSIST_TEXT_WEIGHT` の実効既定値
 
 `tests/test_main.py` の合成テストは model asset、対応 package、provider、GPU の有無に応じて skip される。CoreML case は SDP flow の動的 shape 制約を理由に non-strict xfail が付く。
