@@ -546,7 +546,7 @@ def run():
         if net_dur_disc is not None:
             scheduler_dur_disc.step()
 
-        if epoch == hps.train.epochs:
+        if rank == 0 and epoch == hps.train.epochs:
             # Save the final models
             assert optim_g is not None
             utils.checkpoints.save_checkpoint(

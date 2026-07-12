@@ -232,7 +232,7 @@ CUDA では TF32 matmul を許可し、float32 matmul precision は `medium` で
 - train sampler は rank と world size を受け取り、各 rank に batch を分配する。
 - validation、TensorBoard、定期 checkpoint は rank 0 だけが実行する。
 - 各 epoch の学習後に全 rank が scheduler を進める。
-- 最終 epoch の保存 block は rank 条件の外にあり、全 rank が同じ最終 checkpoint / safetensors path への保存を実行する。
+- 最終 epoch の checkpoint / safetensors 保存と Hugging Face upload も rank 0 だけが実行する。
 
 ## checkpoint、学習再開、成果物
 
@@ -299,7 +299,6 @@ CSV は model file、step、各テキストの score、mean を持つ。PNG は 
 - style vector の NaN は前処理時に list から除外されるが、BERT load failure は data loader で warning 後も処理が続くため、有効な cache を前処理段で生成しておく必要がある。
 - custom bucket sampler は境界外の長さを除外する。境界外も含める場合は `--not_use_custom_batch_sampler` を使う。
 - `val.list` が空でも、rank 0 かつ `--speedup` なしでは evaluation loader を構築する。
-- multi-GPU 最終保存は全 rank が同一 path を対象とする。
 - `speech_mos.py` は外部 SpeechMOS model を `torch.hub` から読み、推論用資産が既に揃っていることを前提とする。
 
 ## 関連テスト
