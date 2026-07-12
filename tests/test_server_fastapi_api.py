@@ -44,7 +44,9 @@ def japanese_g2p_environment():
         update_dict()
         tokenizer_path = DEFAULT_BERT_MODEL_PATHS[Languages.JP]
         tokenizer_source = (
-            str(tokenizer_path) if tokenizer_path.exists() else "ku-nlp/deberta-v2-large-japanese-char-wwm"
+            str(tokenizer_path)
+            if tokenizer_path.exists()
+            else "ku-nlp/deberta-v2-large-japanese-char-wwm"
         )
         bert_models.load_tokenizer(Languages.JP, tokenizer_source)
         yield
@@ -84,6 +86,30 @@ def test_status_returns_runtime_payload(client):
     assert isinstance(payload["memory_used"], int)
     assert isinstance(payload["memory_percent"], int | float)
     assert isinstance(payload["gpu"], list)
+
+
+def test_status_returns_empty_gpu_list_when_gpu_detection_fails(monkeypatch):
+    import GPUtil
+
+    from server_fastapi import create_app
+
+    def raise_gpu_detection_error():
+        raise ValueError("unexpected nvidia-smi output")
+
+    monkeypatch.setattr(GPUtil, "getGPUs", raise_gpu_detection_error)
+    app = create_app(
+        model_holder=EmptyModelHolder(),
+        loaded_models=[],
+        language=Languages.JP,
+        limit=100,
+        allow_origins=[],
+    )
+    client = TestClient(app)
+
+    response = client.get("/status")
+
+    assert response.status_code == 200
+    assert response.json()["gpu"] == []
 
 
 def test_models_info_returns_empty_mapping_without_assets(client):

@@ -155,7 +155,7 @@ def create_app(
     ):
         """Infer text to speech(テキストから感情付き音声を生成する)"""
         logger.info(
-            f"{request.client.host}:{request.client.port}/voice  { unquote(str(request.query_params) )}"
+            f"{request.client.host}:{request.client.port}/voice  {unquote(str(request.query_params))}"
         )
         if request.method == "GET":
             logger.warning(
@@ -223,7 +223,9 @@ def create_app(
             logger.warning(f"Effectively empty text: {text!r}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=[dict(type="invalid_params", msg=str(ex), loc=["query", "text"])],
+                detail=[
+                    dict(type="invalid_params", msg=str(ex), loc=["query", "text"])
+                ],
             )
         logger.success("Audio data generated and sent successfully")
         with BytesIO() as wavContent:
@@ -271,7 +273,11 @@ def create_app(
         devices = ["cpu"]
         for i in range(torch.cuda.device_count()):
             devices.append(f"cuda:{i}")
-        gpus = GPUtil.getGPUs()
+        try:
+            gpus = GPUtil.getGPUs()
+        except Exception as e:
+            logger.warning(f"Failed to get GPU information: {e}")
+            gpus = []
         for gpu in gpus:
             gpuInfo.append(
                 {
@@ -300,7 +306,7 @@ def create_app(
     ):
         """wavデータを取得する"""
         logger.info(
-            f"{request.client.host}:{request.client.port}/tools/get_audio  { unquote(str(request.query_params) )}"
+            f"{request.client.host}:{request.client.port}/tools/get_audio  {unquote(str(request.query_params))}"
         )
         if not os.path.isfile(path):
             raise_validation_error(f"path={path} not found", "path")
