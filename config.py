@@ -91,12 +91,10 @@ class Bert_gen_config:
     def __init__(
         self,
         config_path: str,
-        num_processes: int = 1,
         device: str = "cuda",
         use_multi_device: bool = False,
     ):
         self.config_path = Path(config_path)
-        self.num_processes = num_processes
         if not cuda_available:
             device = "cpu"
         self.device = device
@@ -105,6 +103,9 @@ class Bert_gen_config:
     @classmethod
     def from_dict(cls, dataset_path: Path, data: dict[str, Any]):
         data["config_path"] = dataset_path / data["config_path"]
+        # bert_gen はシングルスレッド固定のため並列数設定は廃止済み。
+        # 旧 config.yml に残る num_processes は無視する
+        data.pop("num_processes", None)
 
         return cls(**data)
 
