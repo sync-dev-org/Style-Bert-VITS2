@@ -221,7 +221,7 @@
 
 両学習スクリプトは `train.bf16_run` が真のときだけ、device type に対応する `torch.amp.autocast` と `GradScaler` を有効にし、autocast dtype を `torch.bfloat16` とする。既定値は偽である。
 
-`train.fp16_run` はハイパーパラメータとして受理されるが、学習 loop は参照しない。したがって fp16 autocast を選ぶ設定経路はない。推論用 safetensors も `is_half=False` の既定で保存され、学習時の generator parameter dtype を維持する。
+`fp16_run` はハイパーパラメータに存在せず、fp16 autocast を選ぶ設定経路はない。旧テンプレート由来の config.json に `fp16_run` キーが残っていても、schema は未知キーとして無視する。推論用 safetensors も `is_half=False` の既定で保存され、学習時の generator parameter dtype を維持する。
 
 CUDA では TF32 matmul を許可し、float32 matmul precision は `medium` である。両スクリプトは flash SDP と memory-efficient SDP を有効にし、通常版は math SDP も明示的に有効にする。
 
