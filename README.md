@@ -45,10 +45,10 @@ Bert-VITS2 を基に、感情や発話スタイルの強さを連続的に制御
 
 ### Repository checkout
 
-Git、Python 3.10 以上、[uv][uv]を用意し、安定線の `sync-dev` branch を clone します。
+Git、Python 3.10 以上、[uv][uv]を用意し、repository を clone します。
 
 ```bash
-git clone --branch sync-dev https://github.com/sync-dev-org/Style-Bert-VITS2.git
+git clone https://github.com/sync-dev-org/Style-Bert-VITS2.git
 cd Style-Bert-VITS2
 uv sync --no-dev --extra torch --group webui
 uv run python initialize.py
@@ -141,18 +141,18 @@ Style-Bert-VITS2 は Bert-VITS2 v2.1 / Japanese-Extra を基に、style vector�
 
 `src/style_bert_vits2/nlp/japanese/user_dict/` は、VOICEVOX engine から継承した [GNU Lesser General Public License v3.0][lgpl-license] の対象です。
 
-[terms]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/sync-dev/docs/TERMS_OF_USE.md
+[terms]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/master/docs/TERMS_OF_USE.md
 [upstream]: https://github.com/litagin02/Style-Bert-VITS2
 [fork]: https://github.com/sync-dev-org/Style-Bert-VITS2
 [bert-vits2]: https://github.com/fishaudio/Bert-VITS2
-[requirements]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/sync-dev/docs/REQUIREMENTS.md
-[roadmap]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/sync-dev/docs/ROADMAP.md
-[spec]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/sync-dev/docs/spec/README.md
+[requirements]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/master/docs/REQUIREMENTS.md
+[roadmap]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/master/docs/ROADMAP.md
+[spec]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/master/docs/spec/README.md
 [uv]: https://docs.astral.sh/uv/
-[cli]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/sync-dev/docs/CLI.md
-[faq]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/sync-dev/docs/FAQ.md
-[changelog]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/sync-dev/docs/CHANGELOG.md
+[cli]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/master/docs/CLI.md
+[faq]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/master/docs/FAQ.md
+[changelog]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/master/docs/CHANGELOG.md
 [easy-bert-vits2]: https://github.com/Zuntan03/EasyBertVits2
 [voicevox]: https://github.com/VOICEVOX/voicevox_engine
-[license]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/sync-dev/LICENSE
-[lgpl-license]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/sync-dev/LGPL_LICENSE
+[license]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/master/LICENSE
+[lgpl-license]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/master/LGPL_LICENSE
