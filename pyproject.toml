@@ -33,7 +33,12 @@ dependencies = [
     "num2words",
     "numba>=0.59",
     "numpy>=1.26,<3",
-    "onnxruntime",
+    # onnxruntime family is pinned to the 1.24 line (CUDA 12 builds). 1.25+ GPU
+    # builds link libcudart.so.13 while the torch cu129 index only provides the
+    # cu12 runtime stack, so a fresh venv cannot load them. Keep base / -gpu /
+    # -directml on the same version to avoid mixed-version file collisions
+    # (all three ship the same `onnxruntime/` package directory).
+    "onnxruntime>=1.24,<1.25",
     "pydantic>=2.0",
     "pyopenjtalk-plus",
     "pypinyin",
@@ -106,8 +111,8 @@ webui = [
     "gradio>=4.32,<6",
     "onnx",
     "onnxconverter-common",
-    "onnxruntime-directml; sys_platform == 'win32'",
-    "onnxruntime-gpu; sys_platform != 'darwin'",
+    "onnxruntime-directml>=1.24,<1.25; sys_platform == 'win32'",
+    "onnxruntime-gpu>=1.24,<1.25; sys_platform != 'darwin'",
     "onnxsim-prebuilt",
     "psutil",
     "pyloudnorm",
