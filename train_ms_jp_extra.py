@@ -79,12 +79,6 @@ def run():
         default=config.dataset_path,
     )
     parser.add_argument(
-        "--assets_root",
-        type=str,
-        help="Root directory of model assets needed for inference.",
-        default=config.assets_root,
-    )
-    parser.add_argument(
         "--skip_default_style",
         action="store_true",
         help="Skip saving default style config and mean vector.",
@@ -169,11 +163,9 @@ def run():
         default: `Data/{model_name}/models`.
         (Use `hps` since we have to pass `model_dir` to `train_and_evaluate()`.
 
-    args.assets_root: The root directory of model assets needed for inference.
-        default: config.assets_root == `model_assets`.
-
     config.out_dir: The directory for model assets of this model (for inference).
-        default: `model_assets/{model_name}`.
+        default: `{assets_root}/{model_name}` with `assets_root` taken from
+        `configs/paths.yml`.
     """
 
     if args.repo_id is not None:

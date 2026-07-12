@@ -274,7 +274,7 @@ CUDA では TF32 matmul を許可し、float32 matmul precision は `medium` で
 {assets_root}/<model_name>/<model_name>_e<epoch>_s<global_step>.safetensors
 ```
 
-この safetensors は推論に不要な `enc_q` key を除外し、`iteration` tensor に epoch を格納する。`--assets_root` CLI 引数は parser に存在するが `config.out_dir` を更新しないため、実際の出力先は `configs/paths.yml` から構築された `{assets_root}/<model_name>` である。
+この safetensors は推論に不要な `enc_q` key を除外し、`iteration` tensor に epoch を格納する。学習スクリプトに出力先を変更する CLI 引数はなく、出力先は `configs/paths.yml` から構築された `{assets_root}/<model_name>` である。
 
 `--repo_id` 指定時は、学習データと推論用資産を対応する Hugging Face repository path へ非同期 upload する。開始時には config の upload を先に試し、失敗時は学習を開始しない。
 
