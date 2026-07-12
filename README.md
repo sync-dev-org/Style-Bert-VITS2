@@ -72,6 +72,8 @@ pip install style-bert-vits2-mk
 
 配布名は `style-bert-vits2-mk` ですが、Python の import 名は従来どおり `style_bert_vits2` です。
 
+具体的な使用例は [library.ipynb](library.ipynb) を参照してください。
+
 ```python
 from style_bert_vits2.constants import Languages
 from style_bert_vits2.tts_model import TTSModel
@@ -117,7 +119,7 @@ model を共有する場合は、この 3 種類を同じ directory 構造で共
 - [要件正典][requirements]
 - [ロードマップ][roadmap]
 - [挙動仕様][spec]
-- [上流由来の更新履歴][changelog]
+- [更新履歴][changelog]
 
 ## 上流プロジェクトについて
 

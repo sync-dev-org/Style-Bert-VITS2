@@ -2,18 +2,11 @@
 
 ## 0. Install and global paths settings
 
-```bash
-git clone https://github.com/litagin02/Style-Bert-VITS2.git
-cd Style-Bert-VITS2
-python -m venv venv
-venv\Scripts\activate
-pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu129
-pip install -e ".[torch]" --group webui
-```
+Set up the repository with uv by following the [installation instructions in the README](/README.md#インストール). The commands below assume that they are run from the repository root with `uv run`.
 
 Then download the necessary models and the default TTS model, and set the global paths.
 ```bash
-python initialize.py [--skip_default_models] [--dataset_root <path>] [--assets_root <path>]
+uv run python initialize.py [--skip_default_models] [--dataset_root <path>] [--assets_root <path>]
 ```
 
 Optional:
@@ -28,7 +21,7 @@ Optional:
 
 The following audio formats are supported: ".wav", ".flac", ".mp3", ".ogg", ".opus", ".m4a".
 ```bash
-python slice.py --model_name <model_name> [-i <input_dir>] [-m <min_sec>] [-M <max_sec>] [--time_suffix]
+uv run python slice.py --model_name <model_name> [-i <input_dir>] [-m <min_sec>] [-M <max_sec>] [--time_suffix]
 ```
 
 Required:
@@ -43,7 +36,7 @@ Optional:
 ### 1.2. Transcribe audio files
 
 ```bash
-python transcribe.py --model_name <model_name>
+uv run python transcribe.py --model_name <model_name>
 ```
 Required:
 - `model_name`: Name of the speaker (to be used as the name of the trained model).
@@ -62,7 +55,7 @@ Optional
 ## 2. Preprocess
 
 ```bash
-python preprocess_all.py -m <model_name> [--use_jp_extra] [-b <batch_size>] [-e <epochs>] [-s <save_every_steps>] [--num_processes <num_processes>] [--normalize] [--trim] [--val_per_lang <val_per_lang>] [--log_interval <log_interval>] [--freeze_EN_bert] [--freeze_JP_bert] [--freeze_ZH_bert] [--freeze_style] [--freeze_decoder] [--yomi_error <yomi_error>]
+uv run python preprocess_all.py -m <model_name> [--use_jp_extra] [-b <batch_size>] [-e <epochs>] [-s <save_every_steps>] [--num_processes <num_processes>] [--normalize] [--trim] [--val_per_lang <val_per_lang>] [--log_interval <log_interval>] [--freeze_EN_bert] [--freeze_JP_bert] [--freeze_ZH_bert] [--freeze_style] [--freeze_decoder] [--yomi_error <yomi_error>]
 ```
 
 Required:
@@ -91,12 +84,12 @@ Training settings are automatically loaded from the above process.
 
 If NOT using JP-Extra model:
 ```bash
-python train_ms.py [--repo_id <username>/<repo_name>]
+uv run python train_ms.py [--repo_id <username>/<repo_name>]
 ```
 
 If using JP-Extra model:
 ```bash
-python train_ms_jp_extra.py [--repo_id <username>/<repo_name>] [--skip_default_style]
+uv run python train_ms_jp_extra.py [--repo_id <username>/<repo_name>] [--skip_default_style]
 ```
 
 Optional:
