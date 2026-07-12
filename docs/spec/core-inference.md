@@ -322,7 +322,7 @@ model load / unload、推論開始・完了、null model 加算、checkpoint key
 - JP-Extra model への非 JP 言語指定は `ValueError` になる。
 - PyTorch model の未対応拡張子は load 時に `ValueError` になる。
 - ONNX provider list が空なら load 時に assertion error になる。
-- `use_spk_conditioned_encoder=False` または `gin_channels=0` では、現行 `SynthesizerTrn` の構築時に `enc_gin_channels` が設定されないまま参照される。
+- `use_spk_conditioned_encoder=False` または `gin_channels=0` では、text encoder への speaker conditioning を無効化 (`enc_gin_channels=0`) して `SynthesizerTrn` を構築する。
 - phone / tone の組、内容、長さに関する検証はテキスト処理層が担う。改行分割時は両指定を使わない。
 - 参照音声 style の利用には `pyannote.audio` と、その model を初期化できる環境が必要である。
 
