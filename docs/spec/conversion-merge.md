@@ -143,7 +143,7 @@ batch 軸と音素列長に依存する軸は dynamic axes としてエクスポ
 ### エントリポイントと出力先
 
 ```bash
-python convert_bert_onnx.py --language <JP|EN|ZH>
+python convert_bert_onnx.py --language <JP|EN|ZH> [--no-deploy]
 ```
 
 `--language` の既定値は `JP` である。変換元は言語ごとの
@@ -158,9 +158,21 @@ python convert_bert_onnx.py --language <JP|EN|ZH>
 
 既定の ONNX 推論コードは別途 `DEFAULT_ONNX_BERT_MODEL_PATHS` が指す言語別ディレクトリの
 `model_fp16.onnx` と、そのディレクトリのトークナイザーをロードする。
-`convert_bert_onnx.py` は変換結果やトークナイザーをその既定 ONNX ディレクトリへコピーしない。
-したがって、変換結果を既定の ONNX 推論経路で使用するには、参照先として明示するか、
-ONNX 推論側が参照するモデル資産へ別途配置する必要がある。
+
+### 既定 ONNX 参照先への配置
+
+FP32 と FP16 の両検証に成功すると、既定では変換結果を `DEFAULT_ONNX_BERT_MODEL_PATHS`
+が指す言語別ディレクトリへコピーし、変換後すぐ既定の ONNX 推論経路から利用できる状態にする
+(`--no-deploy` 指定時はスキップする)。配置先ディレクトリがなければ作成する。
+
+- `model.onnx` と `model_fp16.onnx` は常にコピーし、配置先の同名ファイルを上書きする。
+- tokenizer / 設定ファイル (`config.json`、`tokenizer_config.json`、`tokenizer.json`、
+  `special_tokens_map.json`、`vocab.txt`、`vocab.json`、`merges.txt`、`added_tokens.json`、
+  `spm.model`) は、変換元に存在しかつ配置先に無いものだけを補完する。配置先の既存ファイルは
+  git tracked な配布資産のため上書きしない (変換スクリプトの実行は git tracked file を
+  変更しない)。
+
+一時 ONNX と PyTorch 重みはコピーしない。検証に失敗した場合は配置を行わない。
 
 ### モデルラッパーと入出力
 
@@ -364,6 +376,7 @@ config 出力先を同様に `.bak` へコピーしてから上書きする。
   - FP16 graph の `Cast` 属性補正と FP16 検証閾値
 - `tests/test_style_vectors_save.py`: WebUI 保存経路の検証順序とバックアップ生成
 - `tests/test_default_style_save.py`: `default_style` 直接呼び経路の検証順序とバックアップ生成
+- `tests/test_convert_bert_onnx_deploy.py`: BERT ONNX 変換結果の既定 ONNX 参照先への配置 (対象ファイル選別、上書き、`model_fp16.onnx` 必須)
   - ONNX 変換経路が AIVM/AIVMX 生成へ分岐しないこと
 
 モデルマージとスタイルベクトル生成の数式、ファイル出力、エラー条件を直接検証するテストは
