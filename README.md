@@ -133,15 +133,13 @@ model を共有する場合は、この 3 種類を同じ directory 構造で共
 2. [litagin02/Style-Bert-VITS2][upstream]
 3. [sync-dev-org/Style-Bert-VITS2][fork]（本 fork）
 
-Style-Bert-VITS2 は Bert-VITS2 v2.1 / Japanese-Extra を基に、style vector、各種 WebUI、safetensors 対応などを加えた project です。上流では Windows 向け環境構築の多くに [EasyBertVits2][easy-bert-vits2] の成果が使われています。
-
-また、`src/style_bert_vits2/nlp/japanese/user_dict/` は [VOICEVOX engine][voicevox] の実装を基にしています。元 project とすべての contributor に感謝します。
+Style-Bert-VITS2 は Bert-VITS2 v2.1 / Japanese-Extra を基に、style vector、各種 WebUI、safetensors 対応などを加えた project です。上流では Windows 向け環境構築の多くに [EasyBertVits2][easy-bert-vits2] の成果が使われています。元 project とすべての contributor に感謝します。
 
 ## ライセンス
 
 本 repository は、Bert-VITS2 および上流 Style-Bert-VITS2 と同じ [GNU Affero General Public License v3.0][license] で公開しています。
 
-`src/style_bert_vits2/nlp/japanese/user_dict/` は、VOICEVOX engine から継承した [GNU Lesser General Public License v3.0][lgpl-license] の対象です。
+`src/style_bert_vits2/nlp/japanese/user_dict/` は [GNU Lesser General Public License v3.0][lgpl-license] の対象です。由来と詳細は同 directory 内の README を参照してください。
 
 [terms]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/master/docs/TERMS_OF_USE.md
 [upstream]: https://github.com/litagin02/Style-Bert-VITS2
@@ -155,6 +153,5 @@ Style-Bert-VITS2 は Bert-VITS2 v2.1 / Japanese-Extra を基に、style vector�
 [faq]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/master/docs/FAQ.md
 [changelog]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/master/docs/CHANGELOG.md
 [easy-bert-vits2]: https://github.com/Zuntan03/EasyBertVits2
-[voicevox]: https://github.com/VOICEVOX/voicevox_engine
 [license]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/master/LICENSE
 [lgpl-license]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/master/LGPL_LICENSE

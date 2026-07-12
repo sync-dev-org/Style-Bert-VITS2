@@ -251,9 +251,6 @@
 - [WariHima/Kanayomi-dict](https://github.com/WariHima/KanaYomi-dict)
 - [takana-v/tsumu_dic](https://github.com/takana-v/tsumu_dic)
 
-
-辞書機能部分の[実装](/text/user_dict/) は、中のREADMEにある通り、[VOICEVOX Editor](https://github.com/VOICEVOX/voicevox) のものを使っており、この部分のコードライセンスはLGPL-3.0です。
-
 ##### 音声合成専用エディタ
 
 [🤗 オンラインデモはこちらから](https://huggingface.co/spaces/litagin/Style-Bert-VITS2-Editor-Demo)
