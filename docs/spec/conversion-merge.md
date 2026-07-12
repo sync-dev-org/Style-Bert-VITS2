@@ -343,11 +343,13 @@ WebUI の各保存方式は `<assets-root>/<model-name>/style_vectors.npy` を�
 `config.json` の `data.num_styles` と `data.style2id` を更新する。既存のベクトルと設定は
 それぞれ `.bak` suffix のファイルへコピーしてから上書きする。既存の `.bak` がある場合も
 同名で上書きする。`default_style.save_neutral_vector` と
-`default_style.save_styles_by_dirs` を直接呼ぶ経路には、このバックアップ処理はない。
+`default_style.save_styles_by_dirs` を直接呼ぶ経路でも、既存の `style_vectors.npy` と
+config 出力先を同様に `.bak` へコピーしてから上書きする。
 
-クラスタリング方式はベクトルを保存してから `config.json` の存在、スタイル名数、重複を
-検査する。手動指定方式もベクトルを保存してから `config.json` の存在を検査する。このため、
-設定検証がエラーを返しても `style_vectors.npy` だけが更新済みの場合がある。
+クラスタリング方式は `config.json` の存在、スタイル名数、重複をベクトル保存より前に
+検査する。手動指定方式も `config.json` と各音声の存在をベクトル保存より前に検査する。
+`default_style` の両関数も書き込み前に config を読むため、config が読めない場合に
+`style_vectors.npy` だけが更新されることはない。
 
 入力されたスタイル名同士の重複は拒否するが、入力に `Neutral` が含まれることは低水準関数で
 拒否しない。その場合は先頭に自動追加される `Neutral` と `style2id` の key が衝突し、
@@ -360,6 +362,8 @@ WebUI の各保存方式は `<assets-root>/<model-name>/style_vectors.npy` を�
   - すべての `torch.onnx.export` が `dynamo=False` と opset 20 を明示すること
   - BERT 入力で欠落した `token_type_ids` をゼロテンソルで補うこと
   - FP16 graph の `Cast` 属性補正と FP16 検証閾値
+- `tests/test_style_vectors_save.py`: WebUI 保存経路の検証順序とバックアップ生成
+- `tests/test_default_style_save.py`: `default_style` 直接呼び経路の検証順序とバックアップ生成
   - ONNX 変換経路が AIVM/AIVMX 生成へ分岐しないこと
 
 モデルマージとスタイルベクトル生成の数式、ファイル出力、エラー条件を直接検証するテストは

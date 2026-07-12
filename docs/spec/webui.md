@@ -183,13 +183,13 @@ Hugging Face Whisper の checkbox を切り替えると、標準 Whisper のモ�
 
 分類結果は散布図、選択可能なスタイル番号、DBSCAN の場合は検出スタイル数として表示する。DBSCAN のクラスタ数が 10 を超える場合または 0 の場合は、パラメータ変更を促す文を表示する。「代表音声を取得」は選択クラスタ内で平均距離が小さい音声を最大 10 件表示する。
 
-「スタイルベクトルを保存」は全体平均を `Neutral`、各 centroid を入力されたスタイル名として `style_vectors.npy` に保存し、`config.json` の `num_styles` と `style2id` を更新する。既存ベクトルと config は `.bak` へコピーする。実装はベクトルを保存してから config の存在、スタイル数、重複名を検査するため、これらのエラーを保存結果欄へ表示した時点で `style_vectors.npy` は更新済みになり得る。
+「スタイルベクトルを保存」は全体平均を `Neutral`、各 centroid を入力されたスタイル名として `style_vectors.npy` に保存し、`config.json` の `num_styles` と `style2id` を更新する。config の存在、スタイル数、重複名の検査は保存より前に行い、検査エラー時はベクトルと config のどちらも更新しない。既存ベクトルと config は `.bak` へコピーしてから上書きする。
 
 ### 方法 2: 手動選択
 
 音声ファイル名とスタイル名をそれぞれ comma 区切りで入力する。「スタイルベクトルを保存」は全体平均を `Neutral` とし、各音声に対応する `Data/{モデル名}/wavs/<音声>.npy` を追加して保存する。
 
-事前の「スタイルベクトルを読み込む」が未実行、入力数の不一致、重複名、音声または config の不在は保存結果欄へ表示する。config の存在確認はベクトル保存後なので、config 不在時も `style_vectors.npy` は更新済みになり得る。その他の load、次元削減、分類中の例外は捕捉されず、Gradio のイベントエラーとなる。
+事前の「スタイルベクトルを読み込む」が未実行、入力数の不一致、重複名、音声または config の不在は保存結果欄へ表示する。これらの検査はいずれもベクトル保存より前に行われ、検査エラー時に `style_vectors.npy` は更新されない。その他の load、次元削減、分類中の例外は捕捉されず、Gradio のイベントエラーとなる。
 
 ## マージタブ
 
@@ -270,5 +270,8 @@ convert_onnx.py --model <選択したモデルファイル>
 ## 関連テスト
 
 - `tests/test_onnx_export_restoration.py`: ONNX 変換 UI が AIVM / AivisSpeech 系の外部ツールへ誘導しないことをソース文字列で検証する。
+- `tests/test_gradio_inference.py`: 音声合成イベントのエラー経路がイベント宣言の出力数と同数の返値を返すことを検証する。
+- `tests/test_gradio_merge.py`: モデルマージイベントの空モデル名経路の返値数と、スタイルマージ領域に置き忘れ Markdown がないことを検証する。
+- `tests/test_style_vectors_save.py`: スタイルベクトル保存の検証順序 (validate → backup → write) とバックアップ生成を検証する。
 
-`app.py` および各 `gradio_tabs/*.py` のイベント結線、入力値、表示結果を直接検証する専用テストは存在しない。
+上記以外の `app.py` および各 `gradio_tabs/*.py` のイベント結線、入力値、表示結果を直接検証する専用テストは存在しない。

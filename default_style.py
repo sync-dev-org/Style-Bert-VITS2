@@ -1,4 +1,5 @@
 import json
+import shutil
 from pathlib import Path
 from typing import Union
 
@@ -6,6 +7,12 @@ import numpy as np
 
 from style_bert_vits2.constants import DEFAULT_STYLE
 from style_bert_vits2.logging import logger
+
+
+def _backup_if_exists(path: Path) -> None:
+    if path.exists():
+        logger.info(f"Backup {path} to {path}.bak")
+        shutil.copy(path, f"{path}.bak")
 
 
 def save_neutral_vector(
@@ -16,6 +23,12 @@ def save_neutral_vector(
 ):
     wav_dir = Path(wav_dir)
     output_dir = Path(output_dir)
+    config_output_path = Path(config_output_path)
+
+    # config が読めない場合に style_vectors.npy だけ更新される不整合を防ぐため、先に読む
+    with open(config_path, encoding="utf-8") as f:
+        json_dict = json.load(f)
+
     embs = []
     for file in wav_dir.rglob("*.npy"):
         xvec = np.load(file)
@@ -24,13 +37,14 @@ def save_neutral_vector(
     x = np.concatenate(embs, axis=0)  # (N, 256)
     mean = np.mean(x, axis=0)  # (256,)
     only_mean = np.stack([mean])  # (1, 256)
-    np.save(output_dir / "style_vectors.npy", only_mean)
+    style_vector_path = output_dir / "style_vectors.npy"
+    _backup_if_exists(style_vector_path)
+    np.save(style_vector_path, only_mean)
     logger.info(f"Saved mean style vector to {output_dir}")
 
-    with open(config_path, encoding="utf-8") as f:
-        json_dict = json.load(f)
     json_dict["data"]["num_styles"] = 1
     json_dict["data"]["style2id"] = {DEFAULT_STYLE: 0}
+    _backup_if_exists(config_output_path)
     with open(config_output_path, "w", encoding="utf-8") as f:
         json.dump(json_dict, f, indent=2, ensure_ascii=False)
     logger.info(f"Saved style config to {config_output_path}")
@@ -58,6 +72,10 @@ def save_styles_by_dirs(
         save_neutral_vector(wav_dir, output_dir, config_path, config_output_path)
         return
 
+    # config が読めない場合に style_vectors.npy だけ更新される不整合を防ぐため、先に読む
+    with open(config_path, encoding="utf-8") as f:
+        json_dict = json.load(f)
+
     # First get mean of all for Neutral
     embs = []
     for file in wav_dir.rglob("*.npy"):
@@ -84,15 +102,16 @@ def save_styles_by_dirs(
 
     # Stack them to make (num_styles, 256)
     style_vectors_npy = np.stack(style_vectors, axis=0)
-    np.save(output_dir / "style_vectors.npy", style_vectors_npy)
-    logger.info(f"Saved style vectors to {output_dir / 'style_vectors.npy'}")
+    style_vector_path = output_dir / "style_vectors.npy"
+    _backup_if_exists(style_vector_path)
+    np.save(style_vector_path, style_vectors_npy)
+    logger.info(f"Saved style vectors to {style_vector_path}")
 
     # Save style2id config to json
     style2id = {name: i for i, name in enumerate(names)}
-    with open(config_path, encoding="utf-8") as f:
-        json_dict = json.load(f)
     json_dict["data"]["num_styles"] = len(names)
     json_dict["data"]["style2id"] = style2id
+    _backup_if_exists(config_output_path)
     with open(config_output_path, "w", encoding="utf-8") as f:
         json.dump(json_dict, f, indent=2, ensure_ascii=False)
     logger.info(f"Saved style config to {config_output_path}")
