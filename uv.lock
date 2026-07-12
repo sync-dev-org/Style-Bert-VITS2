@@ -5239,7 +5239,7 @@ wheels = [
 ]
 
 [[package]]
-name = "style-bert-vits2"
+name = "style-bert-vits2-mk"
 source = { editable = "." }
 dependencies = [
     { name = "cmudict" },
