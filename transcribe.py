@@ -60,7 +60,7 @@ def transcribe_files_with_hf_whisper(
     import torch
     from transformers import WhisperProcessor, pipeline
 
-    processor: WhisperProcessor = WhisperProcessor.from_pretrained(model_id)
+    WhisperProcessor.from_pretrained(model_id)
     generate_kwargs: dict[str, Any] = {
         "language": language,
         "do_sample": False,

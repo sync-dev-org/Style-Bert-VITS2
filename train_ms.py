@@ -26,6 +26,11 @@ from mel_processing import mel_spectrogram_torch, spec_to_mel_torch
 from style_bert_vits2.logging import logger
 from style_bert_vits2.models import commons, utils
 from style_bert_vits2.models.hyper_parameters import HyperParameters
+from style_bert_vits2.models.models import (
+    DurationDiscriminator,
+    MultiPeriodDiscriminator,
+    SynthesizerTrn,
+)
 from style_bert_vits2.models.training import (
     autocast,
     dataloader_worker_settings,
@@ -33,11 +38,6 @@ from style_bert_vits2.models.training import (
     module_to_device,
     move_to_device,
     prepare_training_device,
-)
-from style_bert_vits2.models.models import (
-    DurationDiscriminator,
-    MultiPeriodDiscriminator,
-    SynthesizerTrn,
 )
 from style_bert_vits2.nlp.symbols import SYMBOLS
 from style_bert_vits2.utils.stdout_wrapper import SAFE_STDOUT
@@ -772,7 +772,6 @@ def train_and_evaluate(
         if rank == 0:
             if global_step % hps.train.log_interval == 0 and not hps.speedup:
                 lr = optim_g.param_groups[0]["lr"]
-                losses = [loss_disc, loss_gen, loss_fm, loss_mel, loss_dur, loss_kl]
                 # logger.info(
                 #     "Train Epoch: {} [{:.0f}%]".format(
                 #         epoch, 100.0 * batch_idx / len(train_loader)

@@ -35,9 +35,9 @@ def generator_loss(disc_outputs):
     gen_losses = []
     for dg in disc_outputs:
         dg = dg.float()
-        l = torch.mean((1 - dg) ** 2)
-        gen_losses.append(l)
-        loss += l
+        generator_loss_value = torch.mean((1 - dg) ** 2)
+        gen_losses.append(generator_loss_value)
+        loss += generator_loss_value
 
     return loss, gen_losses
 
@@ -56,8 +56,8 @@ def kl_loss(z_p, logs_q, m_p, logs_p, z_mask):
     kl = logs_p - logs_q - 0.5
     kl += 0.5 * ((z_p - m_p) ** 2) * torch.exp(-2.0 * logs_p)
     kl = torch.sum(kl * z_mask)
-    l = kl / torch.sum(z_mask)
-    return l
+    normalized_kl_loss = kl / torch.sum(z_mask)
+    return normalized_kl_loss
 
 
 class WavLMLoss(torch.nn.Module):

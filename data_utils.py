@@ -1,4 +1,5 @@
 import os
+import pickle
 import random
 import sys
 
@@ -130,7 +131,7 @@ class TextAudioSpeakerLoader(torch.utils.data.Dataset):
             spec_filename = spec_filename.replace(".spec.pt", ".mel.pt")
         try:
             spec = torch.load(spec_filename, weights_only=True)
-        except:
+        except (EOFError, OSError, RuntimeError, pickle.UnpicklingError):
             if self.use_mel_spec_posterior:
                 spec = mel_spectrogram_torch(
                     audio_norm,

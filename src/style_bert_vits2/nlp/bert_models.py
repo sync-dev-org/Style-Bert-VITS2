@@ -22,6 +22,8 @@ from transformers import (
     PreTrainedModel,
     PreTrainedTokenizer,
     PreTrainedTokenizerFast,
+)
+from transformers import (
     __version__ as TRANSFORMERS_VERSION,
 )
 

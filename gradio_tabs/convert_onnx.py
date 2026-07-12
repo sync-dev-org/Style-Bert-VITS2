@@ -1,10 +1,9 @@
-from pathlib import Path
 
 import gradio as gr
 
 from style_bert_vits2.constants import GRADIO_THEME
 from style_bert_vits2.logging import logger
-from style_bert_vits2.tts_model import NullModelParam, TTSModelHolder
+from style_bert_vits2.tts_model import TTSModelHolder
 from style_bert_vits2.utils.subprocess import run_script_with_log
 
 
