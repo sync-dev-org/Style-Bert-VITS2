@@ -44,7 +44,7 @@ Required:
 Optional
 - `--initial_prompt`: Initial prompt to use for the transcription (default value is specific to Japanese).
 - `--device`: `cuda` or `cpu` (default: `cuda`).
-- `--language`: `jp`, `en`, or `en` (default: `jp`).
+- `--language`: `ja`, `en`, or `zh` (default: `ja`).
 - `--model`: Whisper model, default: `large-v3`
 - `--compute_type`: default: `bfloat16`. Only used if not `--use_hf_whisper`.
 - `--use_hf_whisper`: Use Hugging Face's whisper model instead of default faster-whisper (HF whisper is faster but requires more VRAM).
