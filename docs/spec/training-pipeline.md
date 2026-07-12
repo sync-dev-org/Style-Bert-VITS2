@@ -172,7 +172,7 @@
 
 ### 4. スタイル特徴量
 
-`style_gen.py` は pyannote の speaker embedding モデルを `config.yml` の style device へ配置し、train/validation の各 WAV から 256 次元ベクトルを生成して `<wav path>.npy` に保存する。
+`style_gen.py` は pyannote の speaker embedding モデルを `config.yml` の style device へ配置し、train/validation の各 WAV から 256 次元ベクトルを生成して `<wav path>.npy` に保存する。音声は SoundFile で float32 PCM へデコードし、channel-first の waveform tensor と sample rate の辞書を pyannote へ渡す。pyannote には音声 path を渡さないため、特徴量生成は torchcodec の path decoder に依存しない。
 
 ベクトルに NaN が含まれる行は、対応する train/validation list から削除する。NaN 以外の抽出例外は処理全体を失敗させる。device は CUDA が利用不能なら CPU へ置き換えられる。
 
