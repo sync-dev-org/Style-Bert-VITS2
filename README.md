@@ -1,250 +1,158 @@
 # Style-Bert-VITS2
 
-**利用の際は必ず[お願いとデフォルトモデルの利用規約](/docs/TERMS_OF_USE.md)をお読みください。**
+> [!IMPORTANT]
+> 利用する前に、必ず[お願いとデフォルトモデルの利用規約][terms]を確認してください。
 
-Bert-VITS2 with more controllable voice styles.
+Bert-VITS2 を基に、感情や発話スタイルの強さを連続的に制御できるようにした音声合成・学習プロジェクトです。音声合成エディター、Gradio WebUI、FastAPI サーバー、学習・モデル変換ツール、Python ライブラリを提供します。
 
-https://github.com/litagin02/Style-Bert-VITS2/assets/139731664/e853f9a2-db4a-4202-a1dd-56ded3c562a0
+このリポジトリは [litagin02/Style-Bert-VITS2][upstream] の独立 fork です。上流への pull request や再合流を前提とせず、[sync-dev-org/Style-Bert-VITS2][fork] として独立してメンテナンスしています。元になった [fishaudio/Bert-VITS2][bert-vits2] と上流プロジェクトの作者・貢献者に感謝します。
 
-You can install via `pip install style-bert-vits2` (inference only), see [library.ipynb](/library.ipynb) for example usage.
+## この fork の主な変更点
 
-- **解説チュートリアル動画** [YouTube](https://youtu.be/aTUSzgDl1iY)　[ニコニコ動画](https://www.nicovideo.jp/watch/sm43391524)
-- [**よくある質問** (FAQ)](/docs/FAQ.md)
-- [🤗 オンラインデモはこちらから](https://huggingface.co/spaces/litagin/Style-Bert-VITS2-Editor-Demo)
-- [Zennの解説記事](https://zenn.dev/litagin/articles/034819a5256ff4)
+- **パッケージングと環境構築の刷新**: 依存定義を `pyproject.toml` に集約し、uv と `uv.lock` による再現可能な環境構築へ移行しました。ビルドバックエンドは hatchling、バージョンは hatch-vcs により `vX.Y.Z` tag から導出します。パッケージは `src/style_bert_vits2/` の src layout です。
+- **現行 Python / PyTorch への対応**: Python 3.10–3.12 を対象とし、PyTorch を optional dependency として整理しました。CUDA 12.9 用 PyTorch index を統一し、ONNX Runtime family は CUDA 12 runtime と整合する 1.24 系に固定しています。
+- **日本語処理の改善**: 記号、数値、電話番号、郵便番号、住所などの正規化と g2p を拡充しました。`pyopenjtalk` worker は起動ディレクトリに依存せず、socket request とユーザー辞書アクセスを直列化して並行実行時の競合を防ぎます。
+- **学習パイプラインの安定化**: 現行 PyTorch API への移行、rank 0 のみの checkpoint 保存、WSL2 での `gloo` backend 選択、再開時の learning rate fallback、前処理失敗の伝播などを追加しました。
+- **推論・変換の堅牢化**: 空に近い入力、無音波形、行分割時の sampling rate、複数話者指定などの境界条件を修正しました。ONNX export を現行 PyTorch で利用できる状態へ戻し、AIVM / AIVMX 連携は削除しています。
+- **品質基盤の整備**: リポジトリ全体へ Ruff の lint / format / import sorting を適用し、言語処理、推論、API、学習、ONNX export、worker 並行性などの test を拡充しました。コードから逆算した 8 系統の[挙動仕様][spec]も整備しています。
+- **Google Colab support の終了**: Colab notebook は削除済みで、今後の動作保証対象にも含めません。
 
-- [**リリースページ**](https://github.com/litagin02/Style-Bert-VITS2/releases/)、[更新履歴](/docs/CHANGELOG.md)
-  - 2025-08-24: Ver 2.7.0: 外部ライブラリ [Aivis Project](https://aivis-project.com/) 等との連携のため、ONNX変換のGUI追加、また音声認識モデルとして `litagin/anime-whisper` の追加等
-  - 2024-09-09: Ver 2.6.1: Google colabでうまく学習できない等のバグ修正のみ
-  - 2024-06-16: Ver 2.6.0 (モデルの差分マージ・加重マージ・ヌルモデルマージの追加、使い道については[この記事](https://zenn.dev/litagin/articles/1297b1dc7bdc79)参照)
-  - 2024-06-14: Ver 2.5.1 (利用規約をお願いへ変更したのみ)
-  - 2024-06-02: Ver 2.5.0 (**[利用規約](/docs/TERMS_OF_USE.md)の追加**、フォルダ分けからのスタイル生成、小春音アミ・あみたろモデルの追加、インストールの高速化等)
-  - 2024-03-16: ver 2.4.1 (**batファイルによるインストール方法の変更**)
-  - 2024-03-15: ver 2.4.0 (大規模リファクタリングや種々の改良、ライブラリ化)
-  - 2024-02-26: ver 2.3 (辞書機能とエディター機能)
-  - 2024-02-09: ver 2.2
-  - 2024-02-07: ver 2.1
-  - 2024-02-03: ver 2.0 (JP-Extra)
-  - 2024-01-09: ver 1.3
-  - 2023-12-31: ver 1.2
-  - 2023-12-29: ver 1.1
-  - 2023-12-27: ver 1.0
+確定済みの対応範囲は[要件正典][requirements]、開発の現在地は[ロードマップ][roadmap]を参照してください。
 
-This repository is based on [Bert-VITS2](https://github.com/fishaudio/Bert-VITS2) v2.1 and Japanese-Extra, so many thanks to the original author!
+## 主な機能
 
-**概要**
+- 日本語・英語・中国語の音声合成
+- スタイルベクトルによる発話スタイルと強度の制御
+- 音声合成エディターと Gradio WebUI
+- 音声 dataset の作成、文字起こし、前処理、学習
+- 学習済みモデルと style vector の merge
+- safetensors model の ONNX 変換
+- FastAPI 音声合成 server
+- Python API による推論
 
-- 入力されたテキストの内容をもとに感情豊かな音声を生成する[Bert-VITS2](https://github.com/fishaudio/Bert-VITS2)のv2.1とJapanese-Extraを元に、感情や発話スタイルを強弱込みで自由に制御できるようにしたものです。
-- GitやPythonがない人でも（Windowsユーザーなら）簡単にインストールでき、学習もできます (多くを[EasyBertVits2](https://github.com/Zuntan03/EasyBertVits2/)からお借りしました)。
-- 音声合成のみに使う場合は、グラボがなくてもCPUで動作します。
-- 音声合成のみに使う場合、Pythonライブラリとして`pip install style-bert-vits2`でインストールできます。例は[library.ipynb](/library.ipynb)を参照してください。
-- 他との連携に使えるAPIサーバーも同梱しています ([@darai0512](https://github.com/darai0512) 様によるPRです、ありがとうございます)。
-- 元々「楽しそうな文章は楽しそうに、悲しそうな文章は悲しそうに」読むのがBert-VITS2の強みですので、スタイル指定がデフォルトでも感情豊かな音声を生成することができます。
+既存の `model_assets/` 形式にある学習済み model の読み込み互換を維持しています。
 
+## 動作環境
 
-## 使い方
+- Python 3.10 / 3.11 / 3.12
+- Windows、WSL2、Linux
+- 音声合成は CPU でも実行可能
+- 学習には NVIDIA GPU が必要
 
-- CLIでの使い方は[こちら](/docs/CLI.md)を参照してください。
-- [よくある質問](/docs/FAQ.md)も参照してください。
+依存管理と repository checkout の install 経路は uv を正とします。Windows / Linux の CUDA 対応 package は PyTorch の `cu129` index から解決されます。
 
-### 動作環境
+## インストール
 
-各UIとAPI Serverにおいて、Windows コマンドプロンプト・WSL2・Linux(Ubuntu Desktop)での動作を確認しています(WSLでのパス指定は相対パスなど工夫ください)。NVidiaのGPUが無い場合は学習はできませんが音声合成とマージは可能です。
+### Repository checkout
 
-### インストール
-
-Pythonライブラリとしてのpipでのインストールや使用例は[library.ipynb](/library.ipynb)を参照してください。
-
-#### GitやPythonに馴染みが無い方
-
-Windowsを前提としています。
-
-1. [このzipファイル](https://github.com/litagin02/Style-Bert-VITS2/releases/latest/download/sbv2.zip)を**パスに日本語や空白が含まれない場所に**ダウンロードして展開します。
-  - グラボがある方は、`Install-Style-Bert-VITS2.bat`をダブルクリックします。
-  - グラボがない方は、`Install-Style-Bert-VITS2-CPU.bat`をダブルクリックします。CPU版では学習はできませんが、音声合成とマージは可能です。
-2. 待つと自動で必要な環境がインストールされます。
-3. その後、自動的に音声合成するためのエディターが起動したらインストール成功です。デフォルトのモデルがダウンロードされるているので、そのまま遊ぶことができます。
-
-またアップデートをしたい場合は、`Update-Style-Bert-VITS2.bat`をダブルクリックしてください。
-
-ただし2024-03-16の**2.4.1**バージョン未満からのアップデートの場合は、全てを削除してから再びインストールする必要があります。申し訳ありません。移行方法は[CHANGELOG.md](/docs/CHANGELOG.md)を参照してください。
-
-#### GitやPython使える人
-
-Pythonの仮想環境・パッケージ管理ツールである[uv](https://github.com/astral-sh/uv)がpipより高速なので、それを使ってインストールすることをお勧めします。
-（使いたくない場合は通常のpipでも大丈夫です。）
+Git、Python 3.10 以上、[uv][uv]を用意し、安定線の `sync-dev` branch を clone します。
 
 ```bash
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-git clone https://github.com/litagin02/Style-Bert-VITS2.git
+git clone --branch sync-dev https://github.com/sync-dev-org/Style-Bert-VITS2.git
 cd Style-Bert-VITS2
-uv venv venv
-venv\Scripts\activate
-uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu129
-uv pip install -e ".[torch]" --group webui
-python initialize.py  # 必要なモデルとデフォルトTTSモデルをダウンロード
+uv sync --no-dev --extra torch --group webui
+uv run python initialize.py
 ```
-最後を忘れずに。
 
-### 音声合成
+`initialize.py` は必要な BERT model とデフォルト TTS model を取得し、path 設定を初期化します。デフォルト model が不要な場合は `--skip_default_models` を指定できます。
 
-音声合成エディターは`Editor.bat`をダブルクリックか、`python server_editor.py --inbrowser`すると起動します（`--device cpu`でCPUモードで起動）。画面内で各セリフごとに設定を変えて原稿を作ったり、保存や読み込みや辞書の編集等ができます。
-インストール時にデフォルトのモデルがダウンロードされているので、学習していなくてもそれを使うことができます。
-
-エディター部分は[別リポジトリ](https://github.com/litagin02/Style-Bert-VITS2-Editor)に分かれています。
-
-バージョン2.2以前での音声合成WebUIは、`App.bat`をダブルクリックか、`python app.py`するとWebUIが起動します。または`Inference.bat`でも音声合成単独タブが開きます。
-
-音声合成に必要なモデルファイルたちの構造は以下の通りです（手動で配置する必要はありません）。
-```
-model_assets
-├── your_model
-│   ├── config.json
-│   ├── your_model_file1.safetensors
-│   ├── your_model_file2.safetensors
-│   ├── ...
-│   └── style_vectors.npy
-└── another_model
-    ├── ...
-```
-このように、推論には`config.json`と`*.safetensors`と`style_vectors.npy`が必要です。モデルを共有する場合は、この3つのファイルを共有してください。
-
-このうち`style_vectors.npy`はスタイルを制御するために必要なファイルで、学習の時にデフォルトで平均スタイル「Neutral」が生成されます。
-複数スタイルを使ってより詳しくスタイルを制御したい方は、下の「スタイルの生成」を参照してください（平均スタイルのみでも、学習データが感情豊かならば十分感情豊かな音声が生成されます）。
-
-### 学習
-
-- CLIでの学習の詳細は[こちら](docs/CLI.md)を参照してください。
-- paperspace上での学習の詳細は[こちら](docs/paperspace.md)を参照してください。
-
-学習には2-14秒程度の音声ファイルが複数と、それらの書き起こしデータが必要です。
-
-- 既存コーパスなどですでに分割された音声ファイルと書き起こしデータがある場合はそのまま（必要に応じて書き起こしファイルを修正して）使えます。下の「学習WebUI」を参照してください。
-- そうでない場合、（長さは問わない）音声ファイルのみがあれば、そこから学習にすぐに使えるようにデータセットを作るためのツールを同梱しています。
-
-#### データセット作り
-
-- `App.bat`をダブルクリックか`python app.py`したところの「データセット作成」タブから、音声ファイルを適切な長さにスライスし、その後に文字の書き起こしを自動で行えます。または`Dataset.bat`をダブルクリックでもその単独タブが開きます。
-- 指示に従った後、下の「学習」タブでそのまま学習を行うことができます。
-
-#### 学習WebUI
-
-- `App.bat`をダブルクリックか`python app.py`して開くWebUIの「学習」タブから指示に従ってください。または`Train.bat`をダブルクリックでもその単独タブが開きます。
-
-### スタイルの生成
-
-- デフォルトでは、デフォルトスタイル「Neutral」の他、学習フォルダのフォルダ分けに応じたスタイルが生成されます。
-- それ以外の方法で手動でスタイルを作成したい人向けです。
-- `App.bat`をダブルクリックか`python app.py`して開くWebUIの「スタイル作成」タブから、音声ファイルを使ってスタイルを生成できます。または`StyleVectors.bat`をダブルクリックでもその単独タブが開きます。
-- 学習とは独立しているので、学習中でもできるし、学習が終わっても何度もやりなおせます（前処理は終わらせている必要があります）。
-
-### API Server
-
-構築した環境下で`python server_fastapi.py`するとAPIサーバーが起動します。
-API仕様は起動後に`/docs`にて確認ください。
-
-- 入力文字数はデフォルトで100文字が上限となっています。これは`config.yml`の`server.limit`で変更できます。
-- デフォルトではCORS設定を全てのドメインで許可しています。できる限り、`config.yml`の`server.origins`の値を変更し、信頼できるドメインに制限ください(キーを消せばCORS設定を無効にできます)。
-
-また音声合成エディターのAPIサーバーは`python server_editor.py`で起動します。があまりまだ整備をしていません。[エディターのリポジトリ](https://github.com/litagin02/Style-Bert-VITS2-Editor)から必要な最低限のAPIしか現在は実装していません。
-
-音声合成エディターのウェブデプロイについては[このDockerfile](Dockerfile.deploy)を参考にしてください。
-
-### マージ
-
-2つのモデルを、「声質」「声の高さ」「感情表現」「テンポ」の4点で混ぜ合わせて、新しいモデルを作ったり、また「あるモデルに、別の2つのモデルの差分を足す」等の操作ができます。
-`App.bat`をダブルクリックか`python app.py`して開くWebUIの「マージ」タブから、2つのモデルを選択してマージすることができます。または`Merge.bat`をダブルクリックでもその単独タブが開きます。
-
-### ONNX変換
-
-タブの「ONNX変換」または `ConvertONNX.bat` から、学習済みsafetensorsファイルをONNX形式に変換することができます。これは外部ライブラリ等でONNX形式ファイルが必要な場合に使えます。
-
-### 自然性評価
-
-学習結果のうちどのステップ数がいいかの「一つの」指標として、[SpeechMOS](https://github.com/tarepan/SpeechMOS) を使うスクリプトを用意しています:
 ```bash
-python speech_mos.py -m <model_name>
+uv run python initialize.py --skip_default_models
 ```
-ステップごとの自然性評価が表示され、`mos_results`フォルダの`mos_{model_name}.csv`と`mos_{model_name}.png`に結果が保存される。読み上げさせたい文章を変えたかったら中のファイルを弄って各自調整してください。またあくまでアクセントや感情表現や抑揚を全く考えない基準での評価で、目安のひとつなので、実際に読み上げさせて選別するのが一番だと思います。
 
-## Bert-VITS2との関係
+上流 release の `sbv2.zip` と `Install-Style-Bert-VITS2*.bat` は、この fork の install 経路ではありません。
 
-基本的にはBert-VITS2のモデル構造を少し改造しただけです。[旧事前学習モデル](https://huggingface.co/litagin/Style-Bert-VITS2-1.0-base)も[JP-Extraの事前学習モデル](https://huggingface.co/litagin/Style-Bert-VITS2-2.0-base-JP-Extra)も、実質Bert-VITS2 v2.1 or JP-Extraと同じものを使用しています（不要な重みを削ってsafetensorsに変換したもの）。
+### Python library
 
-具体的には以下の点が異なります。
+PyPI 公開後は、推論用 library を次の配布名で install できます。
 
-- [EasyBertVits2](https://github.com/Zuntan03/EasyBertVits2)のように、PythonやGitを知らない人でも簡単に使える。
-- 感情埋め込みのモデルを変更（256次元の[wespeaker-voxceleb-resnet34-LM](https://huggingface.co/pyannote/wespeaker-voxceleb-resnet34-LM)へ、感情埋め込みというよりは話者識別のための埋め込み）
-- 感情埋め込みもベクトル量子化を取り払い、単なる全結合層に。
-- スタイルベクトルファイル`style_vectors.npy`を作ることで、そのスタイルを使って効果の強さも連続的に指定しつつ音声を生成することができる。
-- 各種WebUIを作成
-- bf16での学習のサポート
-- safetensors形式のサポート、デフォルトでsafetensorsを使用するように
-- その他軽微なbugfixやリファクタリング
+```bash
+pip install style-bert-vits2-mk
+```
 
+配布名は `style-bert-vits2-mk` ですが、Python の import 名は従来どおり `style_bert_vits2` です。
 
-## References
-In addition to the original reference (written below), I used the following repositories:
-- [Bert-VITS2](https://github.com/fishaudio/Bert-VITS2)
-- [EasyBertVits2](https://github.com/Zuntan03/EasyBertVits2)
+```python
+from style_bert_vits2.constants import Languages
+from style_bert_vits2.tts_model import TTSModel
+```
 
-[The pretrained model](https://huggingface.co/litagin/Style-Bert-VITS2-1.0-base) and [JP-Extra version](https://huggingface.co/litagin/Style-Bert-VITS2-2.0-base-JP-Extra) is essentially taken from [the original base model of Bert-VITS2 v2.1](https://huggingface.co/Garydesu/bert-vits2_base_model-2.1) and [JP-Extra pretrained model of Bert-VITS2](https://huggingface.co/Stardust-minus/Bert-VITS2-Japanese-Extra), so all the credits go to the original author ([Fish Audio](https://github.com/fishaudio)):
+## 起動方法
 
+Repository checkout を初期化した後、目的に応じて次の command を実行します。
 
-In addition, [text/user_dict/](text/user_dict) module is based on the following repositories:
-- [voicevox_engine](https://github.com/VOICEVOX/voicevox_engine)
-and the license of this module is LGPL v3.
+| 用途 | コマンド |
+|---|---|
+| 音声合成 editor | `uv run python server_editor.py --inbrowser` |
+| Gradio WebUI | `uv run python app.py` |
+| FastAPI server | `uv run python server_fastapi.py` |
 
-## LICENSE
+FastAPI の endpoint 仕様は server 起動後の `/docs` で確認できます。CLI で dataset 作成、前処理、学習を行う場合は [CLI guide][cli]を参照し、環境構築には本 README の手順を使用してください。
 
-This repository is licensed under the GNU Affero General Public License v3.0, the same as the original Bert-VITS2 repository. For more details, see [LICENSE](LICENSE).
+WebUI には音声合成、dataset 作成、学習、style 作成、merge、ONNX 変換の各画面があります。
 
-In addition, [text/user_dict/](text/user_dict) module is licensed under the GNU Lesser General Public License v3.0, inherited from the original VOICEVOX engine repository. For more details, see [LGPL_LICENSE](LGPL_LICENSE).
+## モデル資産
 
+推論には、model ごとに次の 3 種類の file が必要です。
 
+```text
+model_assets/
+└── <model-name>/
+    ├── config.json
+    ├── <model-file>.safetensors
+    └── style_vectors.npy
+```
 
-Below is the original README.md.
----
+- `config.json`: model 構成
+- `*.safetensors`: 学習済み weight
+- `style_vectors.npy`: 利用可能な style と style vector
 
-<div align="center">
+model を共有する場合は、この 3 種類を同じ directory 構造で共有してください。
 
-<img alt="LOGO" src="https://cdn.jsdelivr.net/gh/fishaudio/fish-diffusion@main/images/logo_512x512.png" width="256" height="256" />
+## ドキュメント
 
-# Bert-VITS2
+- [お願いとデフォルトモデルの利用規約][terms]
+- [よくある質問][faq]
+- [CLI guide][cli]
+- [要件正典][requirements]
+- [ロードマップ][roadmap]
+- [挙動仕様][spec]
+- [上流由来の更新履歴][changelog]
 
-VITS2 Backbone with multilingual bert
+## 上流プロジェクトについて
 
-For quick guide, please refer to `webui_preprocess.py`.
+上流の tutorial 動画、Hugging Face Space、release archive、version 履歴は上流版を対象とした情報です。この fork では動作や install 手順が異なるため、必要な場合は[上流 repository][upstream]の資料として参照してください。この fork の利用方法と対応範囲は本 README と `docs/` を正とします。
 
-简易教程请参见 `webui_preprocess.py`。
+## 系譜と謝辞
 
-## 请注意，本项目核心思路来源于[anyvoiceai/MassTTS](https://github.com/anyvoiceai/MassTTS) 一个非常好的tts项目
-## MassTTS的演示demo为[ai版峰哥锐评峰哥本人,并找回了在金三角失落的腰子](https://www.bilibili.com/video/BV1w24y1c7z9)
+この repository の系譜は次のとおりです。
 
-[//]: # (## 本项目与[PlayVoice/vits_chinese]&#40;https://github.com/PlayVoice/vits_chinese&#41; 没有任何关系)
+1. [fishaudio/Bert-VITS2][bert-vits2]
+2. [litagin02/Style-Bert-VITS2][upstream]
+3. [sync-dev-org/Style-Bert-VITS2][fork]（本 fork）
 
-[//]: # ()
-[//]: # (本仓库来源于之前朋友分享了ai峰哥的视频，本人被其中的效果惊艳，在自己尝试MassTTS以后发现fs在音质方面与vits有一定差距，并且training的pipeline比vits更复杂，因此按照其思路将bert)
+Style-Bert-VITS2 は Bert-VITS2 v2.1 / Japanese-Extra を基に、style vector、各種 WebUI、safetensors 対応などを加えた project です。上流では Windows 向け環境構築の多くに [EasyBertVits2][easy-bert-vits2] の成果が使われています。
 
-## 成熟的旅行者/开拓者/舰长/博士/sensei/猎魔人/喵喵露/V应当参阅代码自己学习如何训练。
+また、`src/style_bert_vits2/nlp/japanese/user_dict/` は [VOICEVOX engine][voicevox] の実装を基にしています。元 project とすべての contributor に感謝します。
 
-### 严禁将此项目用于一切违反《中华人民共和国宪法》，《中华人民共和国刑法》，《中华人民共和国治安管理处罚法》和《中华人民共和国民法典》之用途。
-### 严禁用于任何政治相关用途。
-#### Video:https://www.bilibili.com/video/BV1hp4y1K78E
-#### Demo:https://www.bilibili.com/video/BV1TF411k78w
-#### QQ Group：815818430
-## References
-+ [anyvoiceai/MassTTS](https://github.com/anyvoiceai/MassTTS)
-+ [jaywalnut310/vits](https://github.com/jaywalnut310/vits)
-+ [p0p4k/vits2_pytorch](https://github.com/p0p4k/vits2_pytorch)
-+ [svc-develop-team/so-vits-svc](https://github.com/svc-develop-team/so-vits-svc)
-+ [PaddlePaddle/PaddleSpeech](https://github.com/PaddlePaddle/PaddleSpeech)
-+ [emotional-vits](https://github.com/innnky/emotional-vits)
-+ [fish-speech](https://github.com/fishaudio/fish-speech)
-+ [Bert-VITS2-UI](https://github.com/jiangyuxiaoxiao/Bert-VITS2-UI)
-## 感谢所有贡献者作出的努力
-<a href="https://github.com/fishaudio/Bert-VITS2/graphs/contributors" target="_blank">
-  <img src="https://contrib.rocks/image?repo=fishaudio/Bert-VITS2"/>
-</a>
+## ライセンス
 
-[//]: # (# 本项目所有代码引用均已写明，bert部分代码思路来源于[AI峰哥]&#40;https://www.bilibili.com/video/BV1w24y1c7z9&#41;，与[vits_chinese]&#40;https://github.com/PlayVoice/vits_chinese&#41;无任何关系。欢迎各位查阅代码。同时，我们也对该开发者的[碰瓷，乃至开盒开发者的行为]&#40;https://www.bilibili.com/read/cv27101514/&#41;表示强烈谴责。)
+本 repository は、Bert-VITS2 および上流 Style-Bert-VITS2 と同じ [GNU Affero General Public License v3.0][license] で公開しています。
+
+`src/style_bert_vits2/nlp/japanese/user_dict/` は、VOICEVOX engine から継承した [GNU Lesser General Public License v3.0][lgpl-license] の対象です。
+
+[terms]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/sync-dev/docs/TERMS_OF_USE.md
+[upstream]: https://github.com/litagin02/Style-Bert-VITS2
+[fork]: https://github.com/sync-dev-org/Style-Bert-VITS2
+[bert-vits2]: https://github.com/fishaudio/Bert-VITS2
+[requirements]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/sync-dev/docs/REQUIREMENTS.md
+[roadmap]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/sync-dev/docs/ROADMAP.md
+[spec]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/sync-dev/docs/spec/README.md
+[uv]: https://docs.astral.sh/uv/
+[cli]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/sync-dev/docs/CLI.md
+[faq]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/sync-dev/docs/FAQ.md
+[changelog]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/sync-dev/docs/CHANGELOG.md
+[easy-bert-vits2]: https://github.com/Zuntan03/EasyBertVits2
+[voicevox]: https://github.com/VOICEVOX/voicevox_engine
+[license]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/sync-dev/LICENSE
+[lgpl-license]: https://github.com/sync-dev-org/Style-Bert-VITS2/blob/sync-dev/LGPL_LICENSE
