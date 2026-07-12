@@ -213,7 +213,7 @@
 
 `LOCAL_RANK` を `prepare_training_device()` に渡し、次の規則で device と DDP backend を決める。
 
-- CUDA 利用可能: `cuda:<LOCAL_RANK>`。非 Windows かつ NCCL 利用可能なら `nccl`、それ以外は `gloo`。
+- CUDA 利用可能: `cuda:<LOCAL_RANK>`。非 Windows、非 WSL2、かつ NCCL 利用可能なら `nccl`、それ以外は `gloo`。WSL2 は Linux kernel release に `microsoft` を含むかで判定する。
 - CUDA 利用不能: `cpu` と `gloo`。DDP の `device_ids` は指定しない。
 - MPS を選択する経路はなく、CUDA 利用不能時は CPU となる。
 - CPU では DataLoader worker を 0、pin memory を無効にする。CUDA では学習 DataLoader worker を 1、pin memory を有効にする。

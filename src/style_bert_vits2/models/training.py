@@ -17,13 +17,19 @@ class TrainingDevice:
 def resolve_training_device(
     local_rank: int,
     system_name: str | None = None,
+    system_release: str | None = None,
 ) -> TrainingDevice:
     if torch.cuda.is_available():
         if system_name is None:
             system_name = platform.system()
+        if system_release is None:
+            system_release = platform.release()
+        is_wsl = system_name == "Linux" and "microsoft" in system_release.casefold()
         backend = (
             "nccl"
-            if system_name != "Windows" and torch.distributed.is_nccl_available()
+            if system_name != "Windows"
+            and not is_wsl
+            and torch.distributed.is_nccl_available()
             else "gloo"
         )
         return TrainingDevice(
