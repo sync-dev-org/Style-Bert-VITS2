@@ -312,3 +312,8 @@ CSV は model file、step、各テキストの score、mean を持つ。PNG は 
   - legacy weight-norm checkpoint の読み込みを検証する。
   - 学習モデル構築時の torch deprecation warning と、学習スクリプトの deprecated SDP 呼び出し不在を検証する。
   - 全 `torch.load` 呼び出しが `weights_only` を明示することを検証する。
+- `tests/test_training_pipeline_config.py`
+  - 最終 epoch の保存 block が rank 0 条件に守られていることを検証する。
+  - 学習スクリプトが `--assets_root` CLI 引数を持たないことを検証する。
+  - `fp16_run` が schema とテンプレートに存在せず、残存キーを持つ config.json の読み込みが成功することを検証する。
+  - bert_gen の executor が 1 worker 固定で、`bert_gen` 設定の残存 `num_processes` キーが無視されることを検証する。
