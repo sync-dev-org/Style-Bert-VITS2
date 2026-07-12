@@ -443,7 +443,9 @@ def run():
             except Exception:
                 # Resuming this optional discriminator is best-effort.
                 if not optim_dur_disc.param_groups[0].get("initial_lr"):
-                    optim_dur_disc.param_groups[0]["initial_lr"] = dur_resume_lr
+                    optim_dur_disc.param_groups[0]["initial_lr"] = (
+                        hps.train.learning_rate
+                    )
                 print("Initialize dur_disc")
         if net_wd is not None:
             try:
@@ -462,7 +464,7 @@ def run():
             except Exception:
                 # Resuming this optional discriminator is best-effort.
                 if not optim_wd.param_groups[0].get("initial_lr"):
-                    optim_wd.param_groups[0]["initial_lr"] = wd_resume_lr
+                    optim_wd.param_groups[0]["initial_lr"] = hps.train.learning_rate
                 logger.info("Initialize wavlm")
 
         try:
