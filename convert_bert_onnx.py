@@ -24,6 +24,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import shutil
 import time
 from argparse import ArgumentParser
 from pathlib import Path
@@ -41,7 +42,11 @@ from rich.style import Style
 from torch import nn
 from transformers import PreTrainedTokenizerBase
 
-from style_bert_vits2.constants import DEFAULT_BERT_MODEL_PATHS, Languages
+from style_bert_vits2.constants import (
+    DEFAULT_BERT_MODEL_PATHS,
+    DEFAULT_ONNX_BERT_MODEL_PATHS,
+    Languages,
+)
 from style_bert_vits2.nlp import bert_models
 
 
@@ -49,6 +54,62 @@ FP32_MAX_DIFF_THRESHOLD = 1e-3
 FP32_MEAN_DIFF_THRESHOLD = 1e-4
 FP16_MAX_DIFF_THRESHOLD = 2.5e-1
 FP16_MEAN_DIFF_THRESHOLD = 2e-3
+
+# 既定の ONNX 推論参照先へ変換結果と一緒に配置する tokenizer / 設定ファイル群
+## 変換元 (PyTorch BERT モデルのディレクトリ) に存在するものだけをコピーする
+TOKENIZER_FILE_NAMES = (
+    "config.json",
+    "tokenizer_config.json",
+    "tokenizer.json",
+    "special_tokens_map.json",
+    "vocab.txt",
+    "vocab.json",
+    "merges.txt",
+    "added_tokens.json",
+    "spm.model",
+)
+
+
+def deploy_to_onnx_model_dir(source_dir: Path, deploy_dir: Path) -> list[Path]:
+    """
+    変換済み ONNX モデルと tokenizer ファイルを、既定の ONNX 推論コードが参照する
+    ディレクトリへコピーする。
+    既定の ONNX 推論 (style_bert_vits2.nlp.onnx_bert_models) は PyTorch BERT モデルとは
+    別の DEFAULT_ONNX_BERT_MODEL_PATHS 配下から model_fp16.onnx と tokenizer をロードするため、
+    変換結果をコピーしない限り既定経路からは利用されない。
+
+    ONNX モデル (gitignore 対象) は常に上書きする。一方 tokenizer / 設定ファイルは
+    配置先で git tracked な配布資産のため、配置先に無いものだけを補完し、既存ファイルは
+    上書きしない (変換スクリプトの実行は git tracked file を変更しない)。
+
+    Args:
+        source_dir (Path): 変換結果 (model.onnx / model_fp16.onnx) と tokenizer を含むディレクトリ
+        deploy_dir (Path): 既定の ONNX 推論が参照するディレクトリ
+
+    Returns:
+        list[Path]: コピーしたファイルのコピー先パスのリスト
+    """
+    fp16_model_path = source_dir / "model_fp16.onnx"
+    if not fp16_model_path.exists():
+        raise FileNotFoundError(f"{fp16_model_path} does not exist")
+
+    deploy_dir.mkdir(parents=True, exist_ok=True)
+    copied: list[Path] = []
+    for file_name in ("model.onnx", "model_fp16.onnx"):
+        source_path = source_dir / file_name
+        if not source_path.exists():
+            continue
+        destination_path = deploy_dir / file_name
+        shutil.copy(source_path, destination_path)
+        copied.append(destination_path)
+    for file_name in TOKENIZER_FILE_NAMES:
+        source_path = source_dir / file_name
+        destination_path = deploy_dir / file_name
+        if not source_path.exists() or destination_path.exists():
+            continue
+        shutil.copy(source_path, destination_path)
+        copied.append(destination_path)
+    return copied
 
 
 def _build_bert_onnx_inputs(inputs: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
@@ -284,6 +345,11 @@ if __name__ == "__main__":
         default=Languages.JP,
         help="Language of the BERT model to be converted",
     )
+    parser.add_argument(
+        "--no-deploy",
+        action="store_true",
+        help="Skip copying the converted models and tokenizer files to the default ONNX BERT model directory",
+    )
     args = parser.parse_args()
 
     # モデルの入出力先ファイルパスを取得
@@ -419,6 +485,22 @@ if __name__ == "__main__":
     print(f"[bold {color}]{message}[/bold {color}]")
     if not is_valid:
         raise RuntimeError(message)
+
+    # 検証済みの変換結果を、既定の ONNX 推論が参照するディレクトリへ配置
+    ## --no-deploy 指定時はスキップし、変換元ディレクトリへの出力だけを行う
+    if not args.no_deploy:
+        print(Rule(characters="=", style=Style(color="blue")))
+        print(
+            "[bold cyan]Deploying to the default ONNX BERT model directory...[/bold cyan]"
+        )
+        print(Rule(characters="=", style=Style(color="blue")))
+        deploy_dir = DEFAULT_ONNX_BERT_MODEL_PATHS[language]
+        copied_paths = deploy_to_onnx_model_dir(
+            Path(pretrained_model_name_or_path), deploy_dir
+        )
+        print(
+            f"[bold green]Deployed {len(copied_paths)} files to {deploy_dir}[/bold green]"
+        )
 
     # サイズ情報の表示
     print(Rule(characters="=", style=Style(color="blue")))

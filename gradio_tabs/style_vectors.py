@@ -198,15 +198,8 @@ def save_style_vectors_from_clustering(model_name: str, style_names_str: str):
     """centerとcentroidsを保存する"""
     result_dir = assets_root / model_name
     result_dir.mkdir(parents=True, exist_ok=True)
-    style_vectors = np.stack([mean] + centroids)
-    style_vector_path = result_dir / "style_vectors.npy"
-    if style_vector_path.exists():
-        logger.info(f"Backup {style_vector_path} to {style_vector_path}.bak")
-        shutil.copy(style_vector_path, f"{style_vector_path}.bak")
-    np.save(style_vector_path, style_vectors)
-    logger.success(f"Saved style vectors to {style_vector_path}")
 
-    # config.jsonの更新
+    # 検証エラー時に style_vectors.npy だけ更新される不整合を防ぐため、保存前に検証する
     config_path = result_dir / "config.json"
     if not config_path.exists():
         return f"{config_path}が存在しません。"
@@ -217,6 +210,15 @@ def save_style_vectors_from_clustering(model_name: str, style_names_str: str):
     if len(set(style_names)) != len(style_names):
         return "スタイル名が重複しています。"
 
+    style_vectors = np.stack([mean] + centroids)
+    style_vector_path = result_dir / "style_vectors.npy"
+    if style_vector_path.exists():
+        logger.info(f"Backup {style_vector_path} to {style_vector_path}.bak")
+        shutil.copy(style_vector_path, f"{style_vector_path}.bak")
+    np.save(style_vector_path, style_vectors)
+    logger.success(f"Saved style vectors to {style_vector_path}")
+
+    # config.jsonの更新
     logger.info(f"Backup {config_path} to {config_path}.bak")
     shutil.copy(config_path, f"{config_path}.bak")
     with open(config_path, encoding="utf-8") as f:
@@ -241,6 +243,10 @@ def save_style_vectors_from_files(
 
     result_dir = assets_root / model_name
     result_dir.mkdir(parents=True, exist_ok=True)
+    # 検証エラー時に style_vectors.npy だけ更新される不整合を防ぐため、保存前に検証する
+    config_path = result_dir / "config.json"
+    if not config_path.exists():
+        return f"{config_path}が存在しません。"
     audio_files = [name.strip() for name in audio_files_str.split(",")]
     style_names = [name.strip() for name in style_names_str.split(",")]
     if len(audio_files) != len(style_names):
@@ -265,9 +271,6 @@ def save_style_vectors_from_files(
     np.save(style_vector_path, style_vectors)
 
     # config.jsonの更新
-    config_path = result_dir / "config.json"
-    if not config_path.exists():
-        return f"{config_path}が存在しません。"
     logger.info(f"Backup {config_path} to {config_path}.bak")
     shutil.copy(config_path, f"{config_path}.bak")
 
