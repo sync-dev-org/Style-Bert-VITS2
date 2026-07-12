@@ -7,9 +7,11 @@
 
 import json
 import sys
+import threading
 import traceback
+from functools import wraps
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, TypeVar
 from uuid import UUID, uuid4
 
 import numpy as np
@@ -45,12 +47,24 @@ def _http_exception(status_code: int, detail: str) -> Exception:
     return HTTPException(status_code=status_code, detail=detail)
 
 
-# # 同時書き込みの制御
-# mutex_user_dict = threading.Lock()
-# mutex_openjtalk_dict = threading.Lock()
+# プロセス内で辞書の read-modify-write・コンパイル・適用を直列化する lock。
+# mutation (apply_word 等) は内部で update_dict や read_dict を呼ぶため再入可能 lock にする。
+# プロセスを跨ぐ排他は提供しない (uvicorn 単一プロセス前提)。
+_dict_lock = threading.RLock()
+
+_T = TypeVar("_T")
 
 
-# @mutex_wrapper(mutex_user_dict)
+def _with_dict_lock(fn: Callable[..., _T]) -> Callable[..., _T]:
+    @wraps(fn)
+    def wrapper(*args: Any, **kwargs: Any) -> _T:
+        with _dict_lock:
+            return fn(*args, **kwargs)
+
+    return wrapper
+
+
+@_with_dict_lock
 def _write_to_json(user_dict: Dict[str, UserDictWord], user_dict_path: Path) -> None:
     """
     ユーザー辞書ファイルへのユーザー辞書データ書き込み
@@ -76,7 +90,7 @@ def _write_to_json(user_dict: Dict[str, UserDictWord], user_dict_path: Path) -> 
     user_dict_path.write_text(user_dict_json, encoding="utf-8")
 
 
-# @mutex_wrapper(mutex_openjtalk_dict)
+@_with_dict_lock
 def update_dict(
     default_dict_path: Path = default_dict_path,
     user_dict_path: Path = user_dict_path,
@@ -171,7 +185,7 @@ def update_dict(
             tmp_compiled_path.unlink()
 
 
-# @mutex_wrapper(mutex_user_dict)
+@_with_dict_lock
 def read_dict(user_dict_path: Path = user_dict_path) -> Dict[str, UserDictWord]:
     """
     ユーザー辞書の読み出し
@@ -258,6 +272,7 @@ def _create_word(
     )
 
 
+@_with_dict_lock
 def apply_word(
     surface: str,
     pronunciation: str,
@@ -309,6 +324,7 @@ def apply_word(
     return word_uuid
 
 
+@_with_dict_lock
 def rewrite_word(
     word_uuid: str,
     surface: str,
@@ -361,6 +377,7 @@ def rewrite_word(
     update_dict(user_dict_path=user_dict_path, compiled_dict_path=compiled_dict_path)
 
 
+@_with_dict_lock
 def delete_word(
     word_uuid: str,
     user_dict_path: Path = user_dict_path,
@@ -390,6 +407,7 @@ def delete_word(
     update_dict(user_dict_path=user_dict_path, compiled_dict_path=compiled_dict_path)
 
 
+@_with_dict_lock
 def import_user_dict(
     dict_data: Dict[str, UserDictWord],
     override: bool = False,

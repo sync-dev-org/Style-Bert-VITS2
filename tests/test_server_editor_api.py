@@ -16,10 +16,10 @@ pytest.importorskip("uvicorn", reason="requires the uvicorn optional dependency"
 
 from fastapi.testclient import TestClient
 
+from style_bert_vits2 import tts_model as tts_model_module
 from style_bert_vits2.nlp import bert_models
 from style_bert_vits2.nlp.japanese import pyopenjtalk_worker as pyopenjtalk
 from style_bert_vits2.nlp.japanese import user_dict as user_dict_module
-from style_bert_vits2 import tts_model as tts_model_module
 
 
 class FakeModel:
