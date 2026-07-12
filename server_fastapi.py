@@ -68,6 +68,7 @@ def create_app(
     from style_bert_vits2.logging import logger
     from style_bert_vits2.nlp.japanese.g2p_utils import g2kata_tone
     from style_bert_vits2.nlp.japanese.normalizer import normalize_text
+    from style_bert_vits2.tts_model import EmptyEffectiveTextError
 
     if limit is not None and limit < 1:
         limit = None
@@ -200,23 +201,30 @@ def create_app(
         assert style is not None
         if encoding is not None:
             text = unquote(text, encoding=encoding)
-        sr, audio = model.infer(
-            text=text,
-            language=language,
-            speaker_id=speaker_id,
-            reference_audio_path=reference_audio_path,
-            sdp_ratio=sdp_ratio,
-            noise=noise,
-            noise_w=noisew,
-            length=length,
-            line_split=auto_split,
-            split_interval=split_interval,
-            assist_text=assist_text,
-            assist_text_weight=assist_text_weight,
-            use_assist_text=bool(assist_text),
-            style=style,
-            style_weight=style_weight,
-        )
+        try:
+            sr, audio = model.infer(
+                text=text,
+                language=language,
+                speaker_id=speaker_id,
+                reference_audio_path=reference_audio_path,
+                sdp_ratio=sdp_ratio,
+                noise=noise,
+                noise_w=noisew,
+                length=length,
+                line_split=auto_split,
+                split_interval=split_interval,
+                assist_text=assist_text,
+                assist_text_weight=assist_text_weight,
+                use_assist_text=bool(assist_text),
+                style=style,
+                style_weight=style_weight,
+            )
+        except EmptyEffectiveTextError as ex:
+            logger.warning(f"Effectively empty text: {text!r}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=[dict(type="invalid_params", msg=str(ex), loc=["query", "text"])],
+            )
         logger.success("Audio data generated and sent successfully")
         with BytesIO() as wavContent:
             wavfile.write(wavContent, sr, audio)

@@ -149,7 +149,7 @@ request body の必須 field 欠落、型不一致、未定義の `language` な
 | `silenceAfter` | float | `0.5` | 複数行合成で、この行の後へ挿入する無音秒数 |
 | `pitchScale` | float | `1.0` | 出力 pitch の倍率 |
 | `intonationScale` | float | `1.0` | 出力 intonation 幅の倍率 |
-| `speaker` | string または null | null | 単発合成の speaker 名 |
+| `speaker` | string または null | null | 合成に使用する speaker 名。単発・複数行合成の両方で使用する |
 
 数値 field には schema 上の上下限を設けない。`speed` が `0` の場合の除算エラーや、推論が受理しない値による例外は HTTP `500` となる。
 
@@ -186,7 +186,7 @@ request body は `{"lines": SynthesisRequest[]}` である。各行を順番に�
 - model 取得失敗は HTTP `500`。
 - `lines` が空の場合は音声配列を連結できず HTTP `500`。
 - 各行の sample rate が同一かどうかは検証しない。WAV の sample rate には最終行の値を使用する。
-- 各行の `speaker` field は推論へ渡さず、model の既定 speaker ID `0` を使用する。
+- 各行の `speaker` は単発合成と同じ規則で行ごとに解決する。null なら speaker ID `0`、指定時は model の `spk2id` による ID を使用し、未知の speaker は HTTP `400` とする。
 - `pitchScale` と `intonationScale` は各行へ適用する。
 
 ## ユーザー辞書 API
@@ -227,7 +227,7 @@ pronunciation または accent の word model validation failure は endpoint �
 
 既存 UUID の word を削除する。UUID が存在しなければ HTTP `422`。成功時は辞書を再コンパイルして UUID を HTTP `200` で返す。
 
-add、update、delete の各 helper は保存後に `update_dict()` を実行し、endpoint も helper の return 後にもう一度 `update_dict()` を実行する。このため成功する 1 回の変更 request につき、現行実装では辞書のコンパイルと適用を 2 回行う。
+add、update、delete の各 helper は保存後に `update_dict()` を実行する。endpoint 側は helper を呼ぶだけで追加の `update_dict()` は行わず、成功する 1 回の変更 request につき辞書のコンパイルと適用は 1 回である。
 
 ## `dict_data/` の保存・適用契約
 
@@ -250,7 +250,7 @@ add、update、delete の各 helper は保存後に `update_dict()` を実行し
 7. `user.dic` を worker の global OpenJTalk instance へ設定する。
 8. 成否にかかわらず一時 file を削除する。
 
-`default.csv` がない場合は warning を標準 error へ出して更新を終了する。コンパイルまたは適用に失敗した場合は例外を再送出する。辞書の読み書きとコンパイルには排他制御を設けていないため、同時 mutation request の直列化は保証しない。
+`default.csv` がない場合は warning を標準 error へ出して更新を終了する。コンパイルまたは適用に失敗した場合は例外を再送出する。辞書の読み書き・コンパイル・適用はプロセス内の再入可能 lock で直列化され、同一プロセス内の同時 mutation request は逐次処理される。プロセスを跨ぐ排他は提供しない。
 
 ## フロントエンドの取得と静的配信
 
@@ -277,7 +277,7 @@ API router の登録後、`static/` を root `/` に `html=True` で mount す�
 | G2P またはその前段の正規化失敗 | `400` | 入力 text と例外文字列 |
 | `--line_length` 超過 | `400` | 設定した最大文字数 |
 | `--line_count` 超過 | `400` | 設定した最大行数 |
-| 単発合成で未知の speaker | `400` | speaker 名と model の `spk2id` |
+| 単発・複数行合成で未知の speaker | `400` | speaker 名と model の `spk2id` |
 | model 名または model file の取得失敗 | `500` | model 名、file、例外文字列 |
 | 辞書の priority が `0..10` 外 | `422` | 優先度が無効 |
 | PUT の UUID が辞書にない | `422` | UUID に該当する word がない |
@@ -289,13 +289,15 @@ API router の登録後、`static/` を root `/` に `html=True` で mount す�
 - API に authentication または authorization はない。
 - 起動時の model 一覧と CORS origin は server 実行中に更新しない。
 - G2P は日本語処理に固定される一方、合成 request の `language` schema は `JP`、`EN`、`ZH` を受理する。model 側がその言語を受理しない場合は推論時に失敗する。
-- user dictionary mutation と推論を含む request 間に明示的な lock はない。
+- user dictionary の読み書きはプロセス内 lock で直列化されるが、推論を含む request との間に lock はない。
 - static release の HTTP request に timeout は指定しない。
 
 ## 関連テスト
 
-`server_editor.py` の endpoint を直接検証する test はない。関連 component の挙動は次の test が部分的に検証する。
+次の test が endpoint と関連 component の挙動を検証する。
 
+- `tests/test_server_editor_api.py`: 音声合成 endpoint の speaker 解決とユーザー辞書 endpoint の辞書更新回数
+- `tests/test_user_dict_lock.py`: ユーザー辞書 mutation の直列化と lock 再入
 - `tests/test_tts_model_holder.py`: model metadata の走査と model 取得
 - `tests/test_japanese_g2p_snapshot.py`: 日本語 G2P 出力
 - `tests/test_normalizer.py`: 日本語正規化

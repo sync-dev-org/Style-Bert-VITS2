@@ -49,6 +49,12 @@ class NullModelParam(BaseModel):
     tempo: float = Field(ge=0.0, le=1.0)  # テンポの重み
 
 
+class EmptyEffectiveTextError(ValueError):
+    """
+    実効テキスト (空行を除いたテキスト) が空で、音声合成の対象が存在しない場合に送出される例外。
+    """
+
+
 class TTSModel:
     """
     Style-Bert-VITS2 の音声合成モデルを操作するクラス。
@@ -329,9 +335,14 @@ class TTSModel:
 
         # Based on: https://docs.scipy.org/doc/scipy/reference/generated/scipy.io.wavfile.write.html
         if data.dtype in [np.float64, np.float32, np.float16]:  # type: ignore
-            data = data / np.abs(data).max()
-            data = data * 32767
-            data = data.astype(np.int16)
+            max_abs = np.abs(data).max()
+            # 全ゼロ波形は正規化すると 0 除算になるため、そのまま無音として扱う
+            if max_abs == 0:
+                data = data.astype(np.int16)
+            else:
+                data = data / max_abs
+                data = data * 32767
+                data = data.astype(np.int16)
         elif data.dtype == np.int32:
             data = data / 65536
             data = data.astype(np.int16)
@@ -408,6 +419,12 @@ class TTSModel:
         """
 
         logger.info(f"Start generating audio data from text:\n{text}")
+        # 空行だけのテキストは合成対象が無く、後段 (改行分割時の np.concatenate 等) で
+        # 分かりにくい例外になるため、モデルロードより前に明示エラー化する
+        if not [t for t in text.split("\n") if t != ""]:
+            raise EmptyEffectiveTextError(
+                "Input text is effectively empty (it contains no non-empty lines)"
+            )
         if language != "JP" and self.hyper_parameters.version.endswith("JP-Extra"):
             raise ValueError(
                 "The model is trained with JP-Extra, but the language is not JP"
@@ -492,7 +509,14 @@ class TTSModel:
                             )
                         )
                         if i != len(texts) - 1:
-                            audios.append(np.zeros(int(44100 * split_interval)))
+                            audios.append(
+                                np.zeros(
+                                    int(
+                                        self.hyper_parameters.data.sampling_rate
+                                        * split_interval
+                                    )
+                                )
+                            )
                     audio = np.concatenate(audios)
 
         # ONNX 推論時
@@ -551,7 +575,14 @@ class TTSModel:
                         )
                     )
                     if i != len(texts) - 1:
-                        audios.append(np.zeros(int(44100 * split_interval)))
+                        audios.append(
+                            np.zeros(
+                                int(
+                                    self.hyper_parameters.data.sampling_rate
+                                    * split_interval
+                                )
+                            )
+                        )
                 audio = np.concatenate(audios)
 
         logger.info(

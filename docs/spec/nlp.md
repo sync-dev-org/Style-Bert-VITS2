@@ -336,7 +336,7 @@ server が dispatch できる関数は公開 interface の 5 関数に固定さ�
 
 追加は新しい UUID を返す。更新・削除は UUID がなければ HTTP 422 相当の例外を送出する。import は UUID、model 型、品詞 metadata、アクセント結合規則を検証する。同じ UUID がある場合、`override=True` では import 側、`False` では既存側を残す。
 
-辞書処理内の排他制御は有効化されていない。同じ辞書 file への並行書き込みは同期されない。
+辞書の読み出し、user JSON への書き込み、`update_dict` のコンパイル・適用は、module 内の再入可能 lock で直列化される。mutation は内部で読み出しと `update_dict` を再入して呼ぶ。lock はプロセス内に閉じ、プロセスを跨ぐ排他は提供しない。
 
 ## 静的データ
 
@@ -369,5 +369,6 @@ server が dispatch できる関数は公開 interface の 5 関数に固定さ�
 - `tests/test_japanese_bert_feature.py`
 - `tests/test_multilingual_bert_feature.py`
 - `tests/test_pyopenjtalk_worker_adapter.py`
+- `tests/test_user_dict_lock.py`
 
 日本語 g2p の代表文は `tests/snapshots/japanese_g2p_snapshot.json` に正規化結果、形態素、読み、phone、tone、`word2ph` の組として固定される。

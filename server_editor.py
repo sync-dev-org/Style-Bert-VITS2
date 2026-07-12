@@ -372,6 +372,13 @@ def multi_synthesis(request: MultiSynthesisRequest):
         ]
         phone_tone = kata_tone2phone_tone(kata_tone_list)
         tone = [t for _, t in phone_tone]
+        try:
+            sid = 0 if req.speaker is None else model.spk2id[req.speaker]
+        except KeyError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Speaker {req.speaker} not found in {model.spk2id}",
+            )
         sr, audio = model.infer(
             text=text,
             language=req.language,
@@ -388,6 +395,7 @@ def multi_synthesis(request: MultiSynthesisRequest):
             line_split=False,
             pitch_scale=req.pitchScale,
             intonation_scale=req.intonationScale,
+            speaker_id=sid,
         )
         audios.append(audio)
         if i < len(lines) - 1:
@@ -420,7 +428,6 @@ def add_user_dict_word(request: UserDictWordRequest):
         accent_type=request.accent_type,
         priority=request.priority,
     )
-    update_dict()
 
     return JSONResponse(
         status_code=status.HTTP_201_CREATED,
@@ -437,14 +444,12 @@ def update_user_dict_word(uuid: str, request: UserDictWordRequest):
         accent_type=request.accent_type,
         priority=request.priority,
     )
-    update_dict()
     return JSONResponse(status_code=status.HTTP_200_OK, content={"uuid": uuid})
 
 
 @router.delete("/user_dict_word/{uuid}")
 def delete_user_dict_word(uuid: str):
     delete_word(uuid)
-    update_dict()
     return JSONResponse(status_code=status.HTTP_200_OK, content={"uuid": uuid})
 
 

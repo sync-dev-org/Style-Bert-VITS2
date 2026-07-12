@@ -142,7 +142,8 @@ HTTP 422 を返す。モデル、speaker、style、ファイル path の独自�
 ```
 
 推論失敗やファイル読込失敗など、明示的に捕捉していない例外には API 独自の error 変換を
-行わない。
+行わない。例外は `/voice` の実効テキスト空エラー (`EmptyEffectiveTextError`) で、
+これだけは HTTP 400 へ変換する (「`GET|POST /voice`」節を参照)。
 
 ## Endpoint 一覧
 
@@ -204,6 +205,10 @@ HTTP 422 を返す。モデル、speaker、style、ファイル path の独自�
 選択した `TTSModel.infer()` に parameter を渡す。`assist_text` が空または未指定なら
 `use_assist_text=False`、それ以外なら `True` とする。推論が返した sampling rate と 16-bit PCM
 音声を `scipy.io.wavfile.write()` で WAV byte 列にし、`Content-Type: audio/wav` で返す。
+
+実効テキスト (改行で分割し空文字要素を除いた行の集合) が空の `text` (改行のみ等) では、
+推論層の `EmptyEffectiveTextError` を HTTP 400 へ変換する。本文は 422 の独自検証エラーと
+同じ構造 (`type: invalid_params`、`loc: ["query", "text"]`) を持つ。
 
 ## `POST /g2p`
 
@@ -291,8 +296,8 @@ path の許可 directory 制約や path 正規化による隔離は行わない�
 - JP-Extra model に `EN` または `ZH` を指定した場合など、推論層で生じる `ValueError` は
   API 層で 422 へ変換しない。
 - `auto_split=true` の場合、空行を除いた改行単位で推論し、各音声の間に
-  `split_interval` 秒の無音を挿入する。改行だけの text などで推論結果が空になる場合の
-  例外処理は API 層にない。
+  `split_interval` 秒の無音を挿入する。改行だけの text など実効テキストが空になる入力は
+  推論層で `EmptyEffectiveTextError` になり、API 層が HTTP 400 へ変換する。
 - `/models/refresh` と `/voice` の同時実行を調停する lock はない。
 - `TTSModelHolder` の探索は `style_vectors.npy` の存在を検証しない。欠落または不正な
   config/style vector は `load_models()` による `TTSModel` 構築時の未捕捉例外になる。
@@ -302,6 +307,7 @@ path の許可 directory 制約や path 正規化による隔離は行わない�
 - `tests/test_server_fastapi_api.py`
   - model asset なしの `/status`、`/models/info`、`/g2p`
   - model asset がある場合の `/voice` WAV 応答
+  - 実効テキスト空の `/voice` に対する HTTP 400 変換
 - `tests/test_server_fastapi_config.py`
   - `Server_config.port` の既定値と明示値
   - `default_config.yml` の port
