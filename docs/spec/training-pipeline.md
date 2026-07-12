@@ -135,7 +135,7 @@
 
 ## 一括前処理
 
-`preprocess_all.py` は `gradio_tabs.train.preprocess_all()` を呼び、各段が失敗した時点で後続を実行せず終了する。
+`preprocess_all.py` は `gradio_tabs.train.preprocess_all()` を呼び、各段が失敗した時点で後続を実行せず終了する。CLI は全段成功時に exit status 0、いずれかの段が失敗した場合にエラーメッセージを標準エラーへ出力して exit status 1 を返す。
 
 ### 1. 初期化
 
