@@ -372,6 +372,13 @@ def multi_synthesis(request: MultiSynthesisRequest):
         ]
         phone_tone = kata_tone2phone_tone(kata_tone_list)
         tone = [t for _, t in phone_tone]
+        try:
+            sid = 0 if req.speaker is None else model.spk2id[req.speaker]
+        except KeyError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Speaker {req.speaker} not found in {model.spk2id}",
+            )
         sr, audio = model.infer(
             text=text,
             language=req.language,
@@ -388,6 +395,7 @@ def multi_synthesis(request: MultiSynthesisRequest):
             line_split=False,
             pitch_scale=req.pitchScale,
             intonation_scale=req.intonationScale,
+            speaker_id=sid,
         )
         audios.append(audio)
         if i < len(lines) - 1:
