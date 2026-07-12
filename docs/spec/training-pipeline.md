@@ -36,7 +36,8 @@
 - `dataset_path`: 指定時は `{dataset_root}/{model_name}` より優先されるデータセットパス
 - `resample`: 入力 `raw`、出力 `wavs`、サンプリングレート 44100 Hz
 - `preprocess_text`: `esd.list`、`train.list`、`val.list`、`config.json` の相対パス
-- `bert_gen` / `style_gen`: `config.json`、device、並列数
+- `bert_gen`: `config.json`、device、multi-device 使用可否
+- `style_gen`: `config.json`、device、並列数
 - `train_ms`: DDP 環境変数、チェックポイントディレクトリ `models`、spec cache、保持世代数
 
 `config.py` は `config.yml` が存在しない場合に生成する。既存ファイルを設定モデルとして読めない場合は `default_config.yml` で置き換える。
@@ -167,7 +168,7 @@
 
 `bert_gen.py` は `config.json` が指す train/validation list を連結し、各行の language に対応する BERT 特徴量を `<wav path>` の `.wav` を `.bert.pt` に置換した path へ保存する。
 
-既存 cache を `weights_only=True` で読み、最終次元が blank 挿入後の phone 長と一致すれば再利用する。読み込みまたは shape 検証に失敗すると再生成する。実装上の executor は 1 worker に固定されている。`config.yml` の BERT device は CUDA が利用不能なら CPU へ置き換えられる。
+既存 cache を `weights_only=True` で読み、最終次元が blank 挿入後の phone 長と一致すれば再利用する。読み込みまたは shape 検証に失敗すると再生成する。executor は 1 worker 固定である。pyopenjtalk worker client が単一接続を排他なしで共有するため、並列実行は要求と応答の混線を招く。`config.yml` の `bert_gen` に並列数の項目はなく、旧 config.yml に残る `num_processes` は無視される。BERT device は CUDA が利用不能なら CPU へ置き換えられる。
 
 ### 4. スタイル特徴量
 
@@ -221,7 +222,7 @@
 
 両学習スクリプトは `train.bf16_run` が真のときだけ、device type に対応する `torch.amp.autocast` と `GradScaler` を有効にし、autocast dtype を `torch.bfloat16` とする。既定値は偽である。
 
-`train.fp16_run` はハイパーパラメータとして受理されるが、学習 loop は参照しない。したがって fp16 autocast を選ぶ設定経路はない。推論用 safetensors も `is_half=False` の既定で保存され、学習時の generator parameter dtype を維持する。
+`fp16_run` はハイパーパラメータに存在せず、fp16 autocast を選ぶ設定経路はない。旧テンプレート由来の config.json に `fp16_run` キーが残っていても、schema は未知キーとして無視する。推論用 safetensors も `is_half=False` の既定で保存され、学習時の generator parameter dtype を維持する。
 
 CUDA では TF32 matmul を許可し、float32 matmul precision は `medium` である。両スクリプトは flash SDP と memory-efficient SDP を有効にし、通常版は math SDP も明示的に有効にする。
 
@@ -232,7 +233,7 @@ CUDA では TF32 matmul を許可し、float32 matmul precision は `medium` で
 - train sampler は rank と world size を受け取り、各 rank に batch を分配する。
 - validation、TensorBoard、定期 checkpoint は rank 0 だけが実行する。
 - 各 epoch の学習後に全 rank が scheduler を進める。
-- 最終 epoch の保存 block は rank 条件の外にあり、全 rank が同じ最終 checkpoint / safetensors path への保存を実行する。
+- 最終 epoch の checkpoint / safetensors 保存と Hugging Face upload も rank 0 だけが実行する。
 
 ## checkpoint、学習再開、成果物
 
@@ -274,7 +275,7 @@ CUDA では TF32 matmul を許可し、float32 matmul precision は `medium` で
 {assets_root}/<model_name>/<model_name>_e<epoch>_s<global_step>.safetensors
 ```
 
-この safetensors は推論に不要な `enc_q` key を除外し、`iteration` tensor に epoch を格納する。`--assets_root` CLI 引数は parser に存在するが `config.out_dir` を更新しないため、実際の出力先は `configs/paths.yml` から構築された `{assets_root}/<model_name>` である。
+この safetensors は推論に不要な `enc_q` key を除外し、`iteration` tensor に epoch を格納する。学習スクリプトに出力先を変更する CLI 引数はなく、出力先は `configs/paths.yml` から構築された `{assets_root}/<model_name>` である。
 
 `--repo_id` 指定時は、学習データと推論用資産を対応する Hugging Face repository path へ非同期 upload する。開始時には config の upload を先に試し、失敗時は学習を開始しない。
 
@@ -299,7 +300,6 @@ CSV は model file、step、各テキストの score、mean を持つ。PNG は 
 - style vector の NaN は前処理時に list から除外されるが、BERT load failure は data loader で warning 後も処理が続くため、有効な cache を前処理段で生成しておく必要がある。
 - custom bucket sampler は境界外の長さを除外する。境界外も含める場合は `--not_use_custom_batch_sampler` を使う。
 - `val.list` が空でも、rank 0 かつ `--speedup` なしでは evaluation loader を構築する。
-- multi-GPU 最終保存は全 rank が同一 path を対象とする。
 - `speech_mos.py` は外部 SpeechMOS model を `torch.hub` から読み、推論用資産が既に揃っていることを前提とする。
 
 ## 関連テスト
@@ -312,3 +312,8 @@ CSV は model file、step、各テキストの score、mean を持つ。PNG は 
   - legacy weight-norm checkpoint の読み込みを検証する。
   - 学習モデル構築時の torch deprecation warning と、学習スクリプトの deprecated SDP 呼び出し不在を検証する。
   - 全 `torch.load` 呼び出しが `weights_only` を明示することを検証する。
+- `tests/test_training_pipeline_config.py`
+  - 最終 epoch の保存 block が rank 0 条件に守られていることを検証する。
+  - 学習スクリプトが `--assets_root` CLI 引数を持たないことを検証する。
+  - `fp16_run` が schema とテンプレートに存在せず、残存キーを持つ config.json の読み込みが成功することを検証する。
+  - bert_gen の executor が 1 worker 固定で、`bert_gen` 設定の残存 `num_processes` キーが無視されることを検証する。

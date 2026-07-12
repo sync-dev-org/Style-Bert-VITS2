@@ -20,7 +20,6 @@ class HyperParametersTrain(BaseModel):
     eps: float = 1e-9
     batch_size: int = 2
     bf16_run: bool = False
-    fp16_run: bool = False
     lr_decay: float = 0.99996
     segment_size: int = 16384
     init_lr_ratio: int = 1

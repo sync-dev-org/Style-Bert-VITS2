@@ -82,9 +82,9 @@ if __name__ == "__main__":
     add_blank = [hps.data.add_blank] * len(lines)
 
     if len(lines) != 0:
-        # pyopenjtalkの別ワーカー化により、並列処理でエラーがでる模様なので、一旦シングルスレッド強制にする
-        num_processes = 1
-        with ThreadPoolExecutor(max_workers=num_processes) as executor:
+        # pyopenjtalk worker client は単一 socket を排他なしで共有しており、
+        # 並列実行すると要求と応答が混線するため、シングルスレッドに固定する
+        with ThreadPoolExecutor(max_workers=1) as executor:
             _ = list(
                 tqdm(
                     executor.map(process_line, zip(lines, add_blank)),
