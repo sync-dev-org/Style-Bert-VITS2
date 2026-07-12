@@ -11,6 +11,7 @@ from tqdm import tqdm
 from config import get_config
 from style_bert_vits2.logging import logger
 from style_bert_vits2.models.hyper_parameters import HyperParameters
+from style_bert_vits2.utils.audio import run_style_inference
 from style_bert_vits2.utils.stdout_wrapper import SAFE_STDOUT
 
 
@@ -28,7 +29,7 @@ class NaNValueError(ValueError):
 
 # 推論時にインポートするために短いが関数を書く
 def get_style_vector(wav_path: str) -> NDArray[Any]:
-    return inference(wav_path)  # type: ignore
+    return run_style_inference(inference, wav_path)  # type: ignore[arg-type]
 
 
 def save_style_vector(wav_path: str):

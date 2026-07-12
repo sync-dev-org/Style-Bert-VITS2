@@ -28,11 +28,31 @@ def test_resolve_training_device_uses_cuda_rank_when_cuda_is_available(monkeypat
     monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
     monkeypatch.setattr(torch.distributed, "is_nccl_available", lambda: True)
 
-    device_config = resolve_training_device(local_rank=1, system_name="Linux")
+    device_config = resolve_training_device(
+        local_rank=1,
+        system_name="Linux",
+        system_release="6.18.0-generic",
+    )
 
     assert device_config.device == torch.device("cuda", 1)
     assert device_config.backend == "nccl"
     assert device_config.ddp_device_ids == [1]
+    assert device_config.pin_memory is True
+
+
+def test_resolve_training_device_uses_gloo_on_wsl2(monkeypatch):
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.distributed, "is_nccl_available", lambda: True)
+
+    device_config = resolve_training_device(
+        local_rank=0,
+        system_name="Linux",
+        system_release="6.18.0-microsoft-standard-WSL2",
+    )
+
+    assert device_config.device == torch.device("cuda", 0)
+    assert device_config.backend == "gloo"
+    assert device_config.ddp_device_ids == [0]
     assert device_config.pin_memory is True
 
 

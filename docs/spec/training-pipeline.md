@@ -135,7 +135,7 @@
 
 ## 一括前処理
 
-`preprocess_all.py` は `gradio_tabs.train.preprocess_all()` を呼び、各段が失敗した時点で後続を実行せず終了する。
+`preprocess_all.py` は `gradio_tabs.train.preprocess_all()` を呼び、各段が失敗した時点で後続を実行せず終了する。CLI は全段成功時に exit status 0、いずれかの段が失敗した場合にエラーメッセージを標準エラーへ出力して exit status 1 を返す。
 
 ### 1. 初期化
 
@@ -172,7 +172,7 @@
 
 ### 4. スタイル特徴量
 
-`style_gen.py` は pyannote の speaker embedding モデルを `config.yml` の style device へ配置し、train/validation の各 WAV から 256 次元ベクトルを生成して `<wav path>.npy` に保存する。
+`style_gen.py` は pyannote の speaker embedding モデルを `config.yml` の style device へ配置し、train/validation の各 WAV から 256 次元ベクトルを生成して `<wav path>.npy` に保存する。音声は SoundFile で float32 PCM へデコードし、channel-first の waveform tensor と sample rate の辞書を pyannote へ渡す。pyannote には音声 path を渡さないため、特徴量生成は torchcodec の path decoder に依存しない。
 
 ベクトルに NaN が含まれる行は、対応する train/validation list から削除する。NaN 以外の抽出例外は処理全体を失敗させる。device は CUDA が利用不能なら CPU へ置き換えられる。
 
@@ -213,7 +213,7 @@
 
 `LOCAL_RANK` を `prepare_training_device()` に渡し、次の規則で device と DDP backend を決める。
 
-- CUDA 利用可能: `cuda:<LOCAL_RANK>`。非 Windows かつ NCCL 利用可能なら `nccl`、それ以外は `gloo`。
+- CUDA 利用可能: `cuda:<LOCAL_RANK>`。非 Windows、非 WSL2、かつ NCCL 利用可能なら `nccl`、それ以外は `gloo`。WSL2 は Linux kernel release に `microsoft` を含むかで判定する。
 - CUDA 利用不能: `cpu` と `gloo`。DDP の `device_ids` は指定しない。
 - MPS を選択する経路はなく、CUDA 利用不能時は CPU となる。
 - CPU では DataLoader worker を 0、pin memory を無効にする。CUDA では学習 DataLoader worker を 1、pin memory を有効にする。

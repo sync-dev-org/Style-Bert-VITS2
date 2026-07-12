@@ -1,18 +1,24 @@
 import argparse
+import sys
+from collections.abc import Callable, Sequence
 from multiprocessing import cpu_count
 
-from gradio_tabs.train import preprocess_all
-from style_bert_vits2.nlp.japanese import pyopenjtalk_worker
-from style_bert_vits2.nlp.japanese.user_dict import update_dict
 
+def main(
+    argv: Sequence[str] | None = None,
+    preprocess: Callable[..., tuple[bool, str]] | None = None,
+) -> int:
+    if preprocess is None:
+        from gradio_tabs.train import preprocess_all
+        from style_bert_vits2.nlp.japanese import pyopenjtalk_worker
+        from style_bert_vits2.nlp.japanese.user_dict import update_dict
 
-# このプロセスからはワーカーを起動して辞書を使いたいので、ここで初期化
-pyopenjtalk_worker.initialize_worker()
+        # このプロセスからはワーカーを起動して辞書を使いたいので、ここで初期化
+        pyopenjtalk_worker.initialize_worker()
+        # dict_data/ 以下の辞書データを pyopenjtalk に適用
+        update_dict()
+        preprocess = preprocess_all
 
-# dict_data/ 以下の辞書データを pyopenjtalk に適用
-update_dict()
-
-if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--model_name", "-m", type=str, help="Model name", required=True
@@ -91,9 +97,9 @@ if __name__ == "__main__":
         default="raise",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
-    preprocess_all(
+    success, message = preprocess(
         model_name=args.model_name,
         batch_size=args.batch_size,
         epochs=args.epochs,
@@ -111,3 +117,11 @@ if __name__ == "__main__":
         log_interval=args.log_interval,
         yomi_error=args.yomi_error,
     )
+    if not success:
+        print(message, file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
