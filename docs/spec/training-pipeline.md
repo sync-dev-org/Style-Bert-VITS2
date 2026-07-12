@@ -168,7 +168,7 @@
 
 `bert_gen.py` は `config.json` が指す train/validation list を連結し、各行の language に対応する BERT 特徴量を `<wav path>` の `.wav` を `.bert.pt` に置換した path へ保存する。
 
-既存 cache を `weights_only=True` で読み、最終次元が blank 挿入後の phone 長と一致すれば再利用する。読み込みまたは shape 検証に失敗すると再生成する。executor は 1 worker 固定である。pyopenjtalk worker client が単一接続を排他なしで共有するため、並列実行は要求と応答の混線を招く。`config.yml` の `bert_gen` に並列数の項目はなく、旧 config.yml に残る `num_processes` は無視される。BERT device は CUDA が利用不能なら CPU へ置き換えられる。
+既存 cache を `weights_only=True` で読み、最終次元が blank 挿入後の phone 長と一致すれば再利用する。読み込みまたは shape 検証に失敗すると再生成する。executor は 1 worker 固定である。pyopenjtalk worker client の要求は client 内の lock で直列化されるため並列実行しても混線はしないが、単一 GPU では各 thread の GPU kernel が直列実行されるため、worker 数を増やしても throughput は向上しない。`config.yml` の `bert_gen` に並列数の項目はなく、旧 config.yml に残る `num_processes` は無視される。BERT device は CUDA が利用不能なら CPU へ置き換えられる。
 
 ### 4. スタイル特徴量
 

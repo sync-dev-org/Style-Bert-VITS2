@@ -305,6 +305,8 @@ client socket の timeout は 60 秒である。`terminate_worker` は server �
 
 client と server は TCP 上で JSON object を送受信する。message は 4 byte big-endian の body 長と UTF-8 JSON body からなる。request type は status、server 終了、pyopenjtalk 呼び出しの 3 種である。
 
+client は 1 要求の送信から応答の受信までを lock で直列化する。同一 process 内の複数 thread が process-global の client を共有して並行に呼び出しても、要求と応答の対応は保たれる。
+
 server が dispatch できる関数は公開 interface の 5 関数に固定される。複数 client を `select` で扱い、切断時に client 数を減らす。接続が body 受信途中で閉じた場合は `ConnectionClosedException` とする。
 
 ## 日本語ユーザー辞書
@@ -369,6 +371,7 @@ server が dispatch できる関数は公開 interface の 5 関数に固定さ�
 - `tests/test_japanese_bert_feature.py`
 - `tests/test_multilingual_bert_feature.py`
 - `tests/test_pyopenjtalk_worker_adapter.py`
+- `tests/test_pyopenjtalk_worker_client.py`
 - `tests/test_user_dict_lock.py`
 
 日本語 g2p の代表文は `tests/snapshots/japanese_g2p_snapshot.json` に正規化結果、形態素、読み、phone、tone、`word2ph` の組として固定される。
