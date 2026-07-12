@@ -13,6 +13,8 @@
 - ONNX エクスポートの復旧と AIVM 系統の削除 ([features/onnx-export-restoration.md](features/onnx-export-restoration.md))
 - テスト構造の整備 ([features/test-structure-overhaul.md](features/test-structure-overhaul.md))
 - テストカバレッジの拡張 ([features/test-coverage-expansion.md](features/test-coverage-expansion.md))
+- torch CUDA wheel の入手 index の cu129 統一 (pyproject explicit index pin、uv.lock 再生成、docs / Windows インストーラ追従)
+- 挙動仕様正典 docs/spec/ の整備 (コードベースから逆算した全域 8 系統の現状挙動仕様、入口は [spec/README.md](spec/README.md)。維持規律は AGENTS.md 文書正典層に登録済み)
 
 ## 進行中 (常に高々 1)
 
