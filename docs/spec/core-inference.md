@@ -239,7 +239,7 @@ PyTorch と ONNX の両経路は、テキスト処理層から normalized text�
 
 `line_split=True` の場合は `text.split("\n")` の空文字要素を除き、各行を独立して推論する。
 
-- 行間には `int(44100 * split_interval)` 個の 0 sample を挿入する。ここで使う 44100 は config の `sampling_rate` ではなく固定値である。
+- 行間には `int(data.sampling_rate * split_interval)` 個の 0 sample を挿入する (`data.sampling_rate` は config 由来)。
 - 分割経路は `given_phone` と `given_tone` を下位推論へ渡さない。
 - 空文字または空行だけの入力は推論結果 list が空になり、`numpy.concatenate()` が `ValueError` を送出する。
 - `line_split=False` の場合だけ `given_phone` / `given_tone` を下位推論へ渡す。
