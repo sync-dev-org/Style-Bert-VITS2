@@ -1,10 +1,10 @@
 # feature: 訓練経路の torch 現行化
 
-訓練・前処理経路を torch 現行系 (lock: torch 2.12.1) で deprecation warning なく成立させる。GPU 要件 (Ada / Blackwell 両世代対応、Blackwell は torch >= 2.7 必須) は [REQUIREMENTS.md](../REQUIREMENTS.md) 「対応環境」を参照。
+訓練・前処理経路を torch 現行系 (lock: linux / win は torch 2.13.0+cu129、darwin は torch 2.12.1) で deprecation warning なく成立させる。GPU 要件 (Ada / Blackwell 両世代対応、Blackwell は torch >= 2.7 必須) は [REQUIREMENTS.md](../REQUIREMENTS.md) 「対応環境」を参照。
 
 ## 決定事項
 
-- torch / torchaudio は lock の現行ペア (torch 2.12.1 + torchaudio 2.11.0) を維持する。torchaudio 2.11.0 は torch への version pin を宣言しておらず (メンテナンスモード移行後の措置)、本 repo の torchaudio 使用面は pure Python 実装の `transforms.Resample` 1 点 (`losses.py` の WavLMLoss) に閉じるため、版ズレが compiled 拡張の ABI 不整合を踏む経路はない。最終裏取りは GPU 実機 smoke (受入条件 7) が担う
+- torch / torchaudio は lock の現行ペア (torch 2.13.0+cu129・darwin 2.12.1 + torchaudio 2.11.0) を維持する。torchaudio 2.11.0 は torch への version pin を宣言しておらず (メンテナンスモード移行後の措置)、本 repo の torchaudio 使用面は pure Python 実装の `transforms.Resample` 1 点 (`losses.py` の WavLMLoss) に閉じるため、版ズレが compiled 拡張の ABI 不整合を踏む経路はない。最終裏取りは GPU 実機 smoke (受入条件 7) が担う
 - 依存 (pyproject.toml / uv.lock) は変更しない
 
 ## 変更 scope
@@ -29,6 +29,10 @@
 4. 旧 weight_norm 形式 (`weight_g` / `weight_v` key) の training checkpoint を新実装で resume load できる
 5. 訓練スクリプト (`train_ms.py` / `train_ms_jp_extra.py`) の import とモデル構築で torch の deprecation / FutureWarning (weight_norm / stft return_complex / sdp_kernel 由来) が発生しない
 6. `torch.load` の全呼び出しで `weights_only` が明示されている
-7. GPU 実機 smoke: Ada / Blackwell 各筐体で短時間の訓練が完走する (repo 外の手動検証、実施記録を残す)
+7. GPU 実機 smoke: CUDA 実機で既定 CLI (preprocess_all / 学習スクリプト) の短時間訓練が完走する (実施記録を本仕様に残す)。Blackwell (sm_120) 筐体固有の互換検証は、実機入手時に実施する将来項目とする
 
 受入条件 2-4 の参照 fixture は移行前実装から生成し、テスト資材として commit する。
+
+## 受入条件 7 実施記録
+
+- 2026-07-12: WSL2 (Linux 6.18 microsoft-standard) / NVIDIA RTX A6000 (Ampere) ×2 / driver 573.06 / torch 2.13.0+cu129 で実施。合成音声 64 発話のデータセットに対し、既定 CLI で `preprocess_all.py --use_jp_extra` (style_gen 込み) が exit 0 完走、`train_ms_jp_extra.py` (wrapper なし、single GPU) が 5 epochs / 80 steps 完走し loss 低下を確認、推論用資産の出力と学習済みモデルでの推論成功 (非無音出力) を確認した。通常版 `train_ms.py` は同一の backend 解決 (単体テストで担保) を共有し、gloo backend での 5 epochs 完走と推論成功を確認した。deprecation / FutureWarning の新規発生なし

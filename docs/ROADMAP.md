@@ -15,14 +15,11 @@
 - テストカバレッジの拡張 ([features/test-coverage-expansion.md](features/test-coverage-expansion.md))
 - torch CUDA wheel の入手 index の cu129 統一 (pyproject explicit index pin、uv.lock 再生成、docs / Windows インストーラ追従)
 - 挙動仕様正典 docs/spec/ の整備 (コードベースから逆算した全域 8 系統の現状挙動仕様、入口は [spec/README.md](spec/README.md)。維持規律は AGENTS.md 文書正典層に登録済み)
+- 訓練経路の torch 現行化 ([features/train-torch-modernization.md](features/train-torch-modernization.md)。CUDA 実機での既定 CLI smoke 完了。Blackwell 筐体固有の互換検証は実機入手時の将来項目)
 
 ## 進行中 (常に高々 1)
 
 - なし (次着手はユーザー合意で確定する)
-
-## 実機検証待ち
-
-- 訓練経路の torch 現行化 — 実装済み。Ada / Blackwell 実機での短時間訓練 smoke のみ残 (完遂時に完了へ移動。GPU 要件は [REQUIREMENTS.md](REQUIREMENTS.md) 対応環境を参照)
 
 ## 次候補 (未確定)
 
