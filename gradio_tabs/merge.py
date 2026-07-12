@@ -640,7 +640,7 @@ def merge_models_gr(
     use_slerp_instead_of_lerp: bool,
 ):
     if output_name == "":
-        return "Error: 新しいモデル名を入力してください。"
+        return "Error: 新しいモデル名を入力してください。", gr.update()
     assert method in [
         "usual",
         "add_diff",
@@ -1182,7 +1182,6 @@ def create_merge_app(model_holder: TTSModelHolder) -> gr.Blocks:
             style_a_list = gr.State([DEFAULT_STYLE])
             style_b_list = gr.State([DEFAULT_STYLE])
             style_c_list = gr.State([DEFAULT_STYLE])
-            gr.Markdown("Hello world!")
             with gr.Row():
                 style_count = gr.Number(label="作るスタイルの数", value=1, step=1)
 

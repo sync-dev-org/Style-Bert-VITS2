@@ -325,10 +325,10 @@ def create_inference_app(model_holder: TTSModelHolder) -> gr.Blocks:
             )
         except InvalidToneError as e:
             logger.error(f"Tone error: {e}")
-            return f"Error: アクセント指定が不正です:\n{e}", None, kata_tone_json_str
+            return f"Error: アクセント指定が不正です:\n{e}", None, kata_tone_json_str, gr.update()
         except ValueError as e:
             logger.error(f"Value error: {e}")
-            return f"Error: {e}", None, kata_tone_json_str
+            return f"Error: {e}", None, kata_tone_json_str, gr.update()
 
         end_time = datetime.datetime.now()
         duration = (end_time - start_time).total_seconds()
