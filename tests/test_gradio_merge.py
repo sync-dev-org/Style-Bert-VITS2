@@ -13,10 +13,9 @@ pytest.importorskip("torch", reason="requires the torch optional dependency")
 
 import gradio as gr
 
+from gradio_tabs.merge import create_merge_app, merge_models_gr
 from style_bert_vits2.models.hyper_parameters import HyperParameters
 from style_bert_vits2.tts_model import TTSModelHolder
-
-from gradio_tabs.merge import create_merge_app, merge_models_gr
 
 
 CPU_ONNX_PROVIDER = (

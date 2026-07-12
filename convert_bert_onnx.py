@@ -490,7 +490,9 @@ if __name__ == "__main__":
     ## --no-deploy 指定時はスキップし、変換元ディレクトリへの出力だけを行う
     if not args.no_deploy:
         print(Rule(characters="=", style=Style(color="blue")))
-        print("[bold cyan]Deploying to the default ONNX BERT model directory...[/bold cyan]")
+        print(
+            "[bold cyan]Deploying to the default ONNX BERT model directory...[/bold cyan]"
+        )
         print(Rule(characters="=", style=Style(color="blue")))
         deploy_dir = DEFAULT_ONNX_BERT_MODEL_PATHS[language]
         copied_paths = deploy_to_onnx_model_dir(

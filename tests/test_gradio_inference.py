@@ -48,9 +48,8 @@ def _write_model_asset(
 @pytest.fixture(scope="module")
 def inference_module():
     # gradio_tabs.inference は import 時に pyopenjtalk worker を起動する
-    from style_bert_vits2.nlp.japanese import pyopenjtalk_worker as pyopenjtalk
-
     from gradio_tabs import inference
+    from style_bert_vits2.nlp.japanese import pyopenjtalk_worker as pyopenjtalk
 
     yield inference
     pyopenjtalk.terminate_worker()
@@ -73,9 +72,7 @@ def test_tts_fn_error_paths_match_event_output_arity(
 
     app = inference_module.create_inference_app(holder)
     block_fn = next(
-        fn
-        for fn in app.fns.values()
-        if getattr(fn.fn, "__name__", "") == "tts_fn"
+        fn for fn in app.fns.values() if getattr(fn.fn, "__name__", "") == "tts_fn"
     )
     n_outputs = len(block_fn.outputs)
 

@@ -10,9 +10,7 @@ import pytest
 
 pytest.importorskip("gradio", reason="requires the gradio optional dependency")
 pytest.importorskip("umap", reason="requires the umap-learn optional dependency")
-pytest.importorskip(
-    "matplotlib", reason="requires the matplotlib optional dependency"
-)
+pytest.importorskip("matplotlib", reason="requires the matplotlib optional dependency")
 
 from gradio_tabs import style_vectors as sv
 
