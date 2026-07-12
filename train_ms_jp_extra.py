@@ -26,6 +26,12 @@ from mel_processing import mel_spectrogram_torch, spec_to_mel_torch
 from style_bert_vits2.logging import logger
 from style_bert_vits2.models import commons, utils
 from style_bert_vits2.models.hyper_parameters import HyperParameters
+from style_bert_vits2.models.models_jp_extra import (
+    DurationDiscriminator,
+    MultiPeriodDiscriminator,
+    SynthesizerTrn,
+    WavLMDiscriminator,
+)
 from style_bert_vits2.models.training import (
     autocast,
     dataloader_worker_settings,
@@ -33,12 +39,6 @@ from style_bert_vits2.models.training import (
     module_to_device,
     move_to_device,
     prepare_training_device,
-)
-from style_bert_vits2.models.models_jp_extra import (
-    DurationDiscriminator,
-    MultiPeriodDiscriminator,
-    SynthesizerTrn,
-    WavLMDiscriminator,
 )
 from style_bert_vits2.nlp.symbols import SYMBOLS
 from style_bert_vits2.utils.stdout_wrapper import SAFE_STDOUT
@@ -440,7 +440,8 @@ def run():
                 )
                 if not optim_dur_disc.param_groups[0].get("initial_lr"):
                     optim_dur_disc.param_groups[0]["initial_lr"] = dur_resume_lr
-            except:
+            except Exception:
+                # Resuming this optional discriminator is best-effort.
                 if not optim_dur_disc.param_groups[0].get("initial_lr"):
                     optim_dur_disc.param_groups[0]["initial_lr"] = dur_resume_lr
                 print("Initialize dur_disc")
@@ -458,7 +459,8 @@ def run():
                 )
                 if not optim_wd.param_groups[0].get("initial_lr"):
                     optim_wd.param_groups[0]["initial_lr"] = wd_resume_lr
-            except:
+            except Exception:
+                # Resuming this optional discriminator is best-effort.
                 if not optim_wd.param_groups[0].get("initial_lr"):
                     optim_wd.param_groups[0]["initial_lr"] = wd_resume_lr
                 logger.info("Initialize wavlm")
@@ -828,9 +830,7 @@ def train_and_evaluate(
                 # torch.nn.utils.clip_grad_norm_(
                 # parameters=net_dur_disc.parameters(), max_norm=5
                 # )
-                grad_norm_dur = commons.clip_grad_value_(
-                    net_dur_disc.parameters(), None
-                )
+                commons.clip_grad_value_(net_dur_disc.parameters(), None)
                 scaler.step(optim_dur_disc)
             if net_wd is not None:
                 # logger.debug(f"y.shape: {y.shape}, y_hat.shape: {y_hat.shape}")
@@ -891,7 +891,6 @@ def train_and_evaluate(
         if rank == 0:
             if global_step % hps.train.log_interval == 0 and not hps.speedup:
                 lr = optim_g.param_groups[0]["lr"]
-                losses = [loss_disc, loss_gen, loss_fm, loss_mel, loss_dur, loss_kl]
                 # logger.info(
                 #     "Train Epoch: {} [{:.0f}%]".format(
                 #         epoch, 100.0 * batch_idx / len(train_loader)

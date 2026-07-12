@@ -90,7 +90,6 @@ def test_run_frontend_supports_legacy_pyopenjtalk_signature(monkeypatch):
 
 
 def test_worker_server_dispatches_run_frontend_through_adapter():
-    from style_bert_vits2.nlp.japanese.pyopenjtalk_worker import adapter
-    from style_bert_vits2.nlp.japanese.pyopenjtalk_worker import worker_server
+    from style_bert_vits2.nlp.japanese.pyopenjtalk_worker import adapter, worker_server
 
     assert worker_server.PYOPENJTALK_FUNC_DICT["run_frontend"] is adapter.run_frontend

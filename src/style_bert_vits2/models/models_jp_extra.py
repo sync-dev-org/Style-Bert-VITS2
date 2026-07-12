@@ -778,7 +778,7 @@ class WavLMDiscriminator(nn.Module):
         use_spectral_norm: bool = False,
     ) -> None:
         super(WavLMDiscriminator, self).__init__()
-        norm_f = weight_norm if use_spectral_norm == False else spectral_norm
+        norm_f = weight_norm if not use_spectral_norm else spectral_norm
         self.pre = norm_f(
             Conv1d(slm_hidden * slm_layers, initial_channel, 1, 1, padding=0)
         )
@@ -810,8 +810,8 @@ class WavLMDiscriminator(nn.Module):
         x = self.pre(x)
 
         fmap = []
-        for l in self.convs:
-            x = l(x)
+        for conv in self.convs:
+            x = conv(x)
             x = F.leaky_relu(x, modules.LRELU_SLOPE)
             fmap.append(x)
         x = self.conv_post(x)
