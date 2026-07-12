@@ -428,7 +428,6 @@ def add_user_dict_word(request: UserDictWordRequest):
         accent_type=request.accent_type,
         priority=request.priority,
     )
-    update_dict()
 
     return JSONResponse(
         status_code=status.HTTP_201_CREATED,
@@ -445,14 +444,12 @@ def update_user_dict_word(uuid: str, request: UserDictWordRequest):
         accent_type=request.accent_type,
         priority=request.priority,
     )
-    update_dict()
     return JSONResponse(status_code=status.HTTP_200_OK, content={"uuid": uuid})
 
 
 @router.delete("/user_dict_word/{uuid}")
 def delete_user_dict_word(uuid: str):
     delete_word(uuid)
-    update_dict()
     return JSONResponse(status_code=status.HTTP_200_OK, content={"uuid": uuid})
 
 

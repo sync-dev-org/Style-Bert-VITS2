@@ -127,3 +127,65 @@ def test_synthesis_rejects_unknown_speaker_with_400(client, fake_holder):
 
     assert response.status_code == 400
     assert "nobody" in response.json()["detail"]
+
+
+_WORD = {"surface": "テスト", "pronunciation": "テスト", "accent_type": 1}
+
+
+class _UpdateDictSpy:
+    def __init__(self):
+        self.calls = 0
+
+    def __call__(self, *args: Any, **kwargs: Any) -> None:
+        self.calls += 1
+
+
+@pytest.fixture()
+def user_dict_file_guard(server_editor):
+    """dict_data/user_dict.json を test 前後で退避・復元する。"""
+    path = user_dict_module.user_dict_path
+    original = path.read_bytes() if path.is_file() else None
+    try:
+        yield
+    finally:
+        if original is None:
+            path.unlink(missing_ok=True)
+        else:
+            path.write_bytes(original)
+
+
+@pytest.fixture()
+def update_dict_spy(server_editor, monkeypatch, user_dict_file_guard):
+    spy = _UpdateDictSpy()
+    monkeypatch.setattr(user_dict_module, "update_dict", spy)
+    monkeypatch.setattr(server_editor, "update_dict", spy, raising=False)
+    return spy
+
+
+def test_add_user_dict_word_updates_dict_once(client, update_dict_spy):
+    response = client.post("/api/user_dict_word", json=_WORD)
+
+    assert response.status_code == 201
+    assert update_dict_spy.calls == 1
+
+
+def test_update_user_dict_word_updates_dict_once(client, update_dict_spy):
+    uuid = client.post("/api/user_dict_word", json=_WORD).json()["uuid"]
+    update_dict_spy.calls = 0
+
+    response = client.put(
+        f"/api/user_dict_word/{uuid}", json={**_WORD, "accent_type": 2}
+    )
+
+    assert response.status_code == 200
+    assert update_dict_spy.calls == 1
+
+
+def test_delete_user_dict_word_updates_dict_once(client, update_dict_spy):
+    uuid = client.post("/api/user_dict_word", json=_WORD).json()["uuid"]
+    update_dict_spy.calls = 0
+
+    response = client.delete(f"/api/user_dict_word/{uuid}")
+
+    assert response.status_code == 200
+    assert update_dict_spy.calls == 1

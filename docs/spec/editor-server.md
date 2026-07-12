@@ -227,7 +227,7 @@ pronunciation または accent の word model validation failure は endpoint �
 
 既存 UUID の word を削除する。UUID が存在しなければ HTTP `422`。成功時は辞書を再コンパイルして UUID を HTTP `200` で返す。
 
-add、update、delete の各 helper は保存後に `update_dict()` を実行し、endpoint も helper の return 後にもう一度 `update_dict()` を実行する。このため成功する 1 回の変更 request につき、現行実装では辞書のコンパイルと適用を 2 回行う。
+add、update、delete の各 helper は保存後に `update_dict()` を実行する。endpoint 側は helper を呼ぶだけで追加の `update_dict()` は行わず、成功する 1 回の変更 request につき辞書のコンパイルと適用は 1 回である。
 
 ## `dict_data/` の保存・適用契約
 
@@ -296,7 +296,7 @@ API router の登録後、`static/` を root `/` に `html=True` で mount す�
 
 次の test が endpoint と関連 component の挙動を検証する。
 
-- `tests/test_server_editor_api.py`: 音声合成 endpoint の speaker 解決
+- `tests/test_server_editor_api.py`: 音声合成 endpoint の speaker 解決とユーザー辞書 endpoint の辞書更新回数
 - `tests/test_tts_model_holder.py`: model metadata の走査と model 取得
 - `tests/test_japanese_g2p_snapshot.py`: 日本語 G2P 出力
 - `tests/test_normalizer.py`: 日本語正規化
