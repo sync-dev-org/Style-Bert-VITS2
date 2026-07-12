@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+import os
 import platform
+import tempfile
 from dataclasses import dataclass
 from importlib.util import find_spec
 
 import pytest
+
+
+if "NUMBA_CACHE_DIR" not in os.environ:
+    os.environ.setdefault(
+        "NUMBA_CACHE_DIR", tempfile.mkdtemp(prefix="style-bert-vits2-numba-cache-")
+    )
 
 
 @dataclass(frozen=True)
