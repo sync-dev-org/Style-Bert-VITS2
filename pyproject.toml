@@ -54,6 +54,11 @@ torch = [
     "accelerate",
     "torch>=2.1",
 ]
+# OpenAI-compatible TTS API server (style_bert_vits2.server)
+server = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
 
 [project.urls]
 Documentation = "https://github.com/sync-dev-org/Style-Bert-VITS2#readme"
@@ -94,6 +99,8 @@ dev = [
     "scipy",
     "ruff",
     "build",
+    # FastAPI TestClient transport for the OpenAI-compatible server tests
+    "httpx",
 ]
 # training pipeline (repo checkout usage; not part of the distributed package)
 train = [

@@ -5265,6 +5265,10 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+server = [
+    { name = "fastapi" },
+    { name = "uvicorn" },
+]
 torch = [
     { name = "accelerate" },
     { name = "torch", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
@@ -5274,6 +5278,7 @@ torch = [
 [package.dev-dependencies]
 dev = [
     { name = "build" },
+    { name = "httpx" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -5315,6 +5320,7 @@ requires-dist = [
     { name = "cmudict" },
     { name = "cn2an" },
     { name = "e2k", specifier = ">=0.6" },
+    { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.115" },
     { name = "g2p-en" },
     { name = "jaconv" },
     { name = "jieba" },
@@ -5333,12 +5339,14 @@ requires-dist = [
     { name = "torch", marker = "(sys_platform == 'linux' and extra == 'torch') or (sys_platform == 'win32' and extra == 'torch')", specifier = ">=2.1", index = "https://download.pytorch.org/whl/cu129" },
     { name = "torch", marker = "sys_platform != 'linux' and sys_platform != 'win32' and extra == 'torch'", specifier = ">=2.1" },
     { name = "transformers" },
+    { name = "uvicorn", marker = "extra == 'server'", specifier = ">=0.30" },
 ]
-provides-extras = ["torch"]
+provides-extras = ["server", "torch"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "build" },
+    { name = "httpx" },
     { name = "pytest", specifier = ">=8.3.5" },
     { name = "ruff" },
     { name = "scipy" },
