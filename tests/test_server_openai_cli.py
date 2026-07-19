@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import builtins
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 from style_bert_vits2.constants import Languages
@@ -24,26 +24,24 @@ def test_main_initializes_runtime_and_starts_uvicorn_with_cli_values(
 ):
     calls: dict[str, Any] = {
         "worker": 0,
-        "dict": 0,
+        "dict": [],
         "bert_models": [],
         "bert_tokenizers": [],
     }
     fake_app = object()
-
-    monkeypatch.setattr(
-        "config.get_config",
-        lambda: SimpleNamespace(
-            assets_root=tmp_path / "configured-models",
-            server_config=SimpleNamespace(language="JP"),
-        ),
+    dictionary_paths = cli._UserDictionaryPaths(
+        default_dict_path=tmp_path / "default.csv",
+        user_dict_path=tmp_path / "user_dict.json",
+        compiled_dict_path=tmp_path / "user.dic",
     )
+    monkeypatch.setattr(cli, "_resolve_user_dictionary_paths", lambda: dictionary_paths)
     monkeypatch.setattr(
         "style_bert_vits2.nlp.japanese.pyopenjtalk_worker.initialize_worker",
         lambda: calls.__setitem__("worker", calls["worker"] + 1),
     )
     monkeypatch.setattr(
         "style_bert_vits2.nlp.japanese.user_dict.update_dict",
-        lambda: calls.__setitem__("dict", calls["dict"] + 1),
+        lambda **kwargs: calls["dict"].append(kwargs),
     )
     monkeypatch.setattr(
         "style_bert_vits2.nlp.bert_models.load_model",
@@ -100,7 +98,13 @@ def test_main_initializes_runtime_and_starts_uvicorn_with_cli_values(
 
     assert calls == {
         "worker": 1,
-        "dict": 1,
+        "dict": [
+            {
+                "default_dict_path": dictionary_paths.default_dict_path,
+                "user_dict_path": dictionary_paths.user_dict_path,
+                "compiled_dict_path": dictionary_paths.compiled_dict_path,
+            }
+        ],
         "bert_models": [(Languages.JP, "cpu"), (Languages.EN, "cpu")],
         "bert_tokenizers": [Languages.JP, Languages.EN],
     }
@@ -116,15 +120,21 @@ def test_main_initializes_runtime_and_starts_uvicorn_with_cli_values(
     ]
 
 
-def test_main_can_disable_bert_preload(tmp_path, monkeypatch):
+def test_main_uses_package_defaults_without_importing_repository_config(
+    tmp_path, monkeypatch
+):
     model_loads: list[Any] = []
     tokenizer_loads: list[Any] = []
+    dictionary_updates: list[Any] = []
+    warnings: list[str] = []
 
     monkeypatch.setattr(
-        "config.get_config",
-        lambda: SimpleNamespace(
-            assets_root=tmp_path,
-            server_config=SimpleNamespace(language="JP"),
+        cli,
+        "_resolve_user_dictionary_paths",
+        lambda: cli._UserDictionaryPaths(
+            default_dict_path=None,
+            user_dict_path=tmp_path / "user_dict.json",
+            compiled_dict_path=tmp_path / "user.dic",
         ),
     )
     monkeypatch.setattr(
@@ -133,7 +143,7 @@ def test_main_can_disable_bert_preload(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(
         "style_bert_vits2.nlp.japanese.user_dict.update_dict",
-        lambda: None,
+        lambda **kwargs: dictionary_updates.append(kwargs),
     )
     monkeypatch.setattr(
         "style_bert_vits2.nlp.bert_models.load_model",
@@ -149,13 +159,90 @@ def test_main_can_disable_bert_preload(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(app_module, "create_app", lambda *args, **kwargs: object())
     monkeypatch.setattr("uvicorn.run", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli.logger, "warning", warnings.append)
     monkeypatch.setattr(
         sys,
         "argv",
         ["style_bert_vits2.server", "--device", "cpu", "--no-preload-bert"],
     )
+    original_import = builtins.__import__
+
+    def guarded_import(name, *args, **kwargs):
+        if name == "config":
+            raise AssertionError("The package CLI must not import repository config.py")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
 
     cli.main()
 
     assert model_loads == []
     assert tokenizer_loads == []
+    assert dictionary_updates == []
+    assert warnings == [
+        "Default user dictionary not found; skipping dictionary update."
+    ]
+    assert FakeHolder.calls[-1][0] == Path("model_assets")
+
+
+def test_parser_defaults_to_cwd_model_assets_and_japanese():
+    args = cli._parser().parse_args([])
+
+    assert args.dir == Path("model_assets")
+    assert args.language == Languages.JP.value
+
+
+def test_dictionary_paths_use_repository_directory_when_present(tmp_path):
+    repository_dict_dir = tmp_path / "repository-dict"
+    repository_dict_dir.mkdir()
+    default_dict_path = repository_dict_dir / "default.csv"
+    default_dict_path.touch()
+
+    paths = cli._resolve_user_dictionary_paths(
+        repository_dict_dir=repository_dict_dir,
+        package_dir=tmp_path / "package",
+        cache_dict_dir=tmp_path / "cache",
+    )
+
+    assert paths == cli._UserDictionaryPaths(
+        default_dict_path=default_dict_path,
+        user_dict_path=repository_dict_dir / "user_dict.json",
+        compiled_dict_path=repository_dict_dir / "user.dic",
+    )
+
+
+def test_dictionary_paths_use_packaged_default_and_user_cache(tmp_path):
+    package_dir = tmp_path / "package"
+    packaged_dict_dir = package_dir / "dict_data"
+    packaged_dict_dir.mkdir(parents=True)
+    packaged_default_dict_path = packaged_dict_dir / "default.csv"
+    packaged_default_dict_path.touch()
+    cache_dict_dir = tmp_path / "cache"
+
+    paths = cli._resolve_user_dictionary_paths(
+        repository_dict_dir=tmp_path / "missing-repository-dict",
+        package_dir=package_dir,
+        cache_dict_dir=cache_dict_dir,
+    )
+
+    assert paths == cli._UserDictionaryPaths(
+        default_dict_path=packaged_default_dict_path,
+        user_dict_path=cache_dict_dir / "user_dict.json",
+        compiled_dict_path=cache_dict_dir / "user.dic",
+    )
+
+
+def test_dictionary_paths_report_missing_default_and_use_user_cache(tmp_path):
+    cache_dict_dir = tmp_path / "cache"
+
+    paths = cli._resolve_user_dictionary_paths(
+        repository_dict_dir=tmp_path / "missing-repository-dict",
+        package_dir=tmp_path / "package",
+        cache_dict_dir=cache_dict_dir,
+    )
+
+    assert paths == cli._UserDictionaryPaths(
+        default_dict_path=None,
+        user_dict_path=cache_dict_dir / "user_dict.json",
+        compiled_dict_path=cache_dict_dir / "user.dic",
+    )

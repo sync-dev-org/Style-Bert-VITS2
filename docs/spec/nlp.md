@@ -215,11 +215,14 @@ PyTorch と ONNX は別々に、言語を key とする process-global cache へ
 
 ### PyTorch
 
-- path を省略した場合は言語別 default path の存在を assertion で要求する。
+- path を省略した場合は言語別 default path が存在すればローカル資産を使い、存在しなければ
+  次の Hugging Face repository ID を `from_pretrained` へ渡す。
+  - 日本語: `ku-nlp/deberta-v2-large-japanese-char-wwm`
+  - 英語: `microsoft/deberta-v3-large`
+  - 中国語: `hfl/chinese-roberta-wwm-ext-large`
 - 英語以外は masked language model、英語は `DebertaV2Model` として load する。
 - model は float32 で load する。Transformers 5 以降は `dtype`、それより前は `torch_dtype` を渡す。
 - `transfer_model` は未 load なら `ValueError`、現在 device の文字列表現が指定 device で始まる場合は何もしない。それ以外は `.to(device)` で移動する。
-- PyTorch 用 default tokenizer がなく、同じ言語の ONNX tokenizer が load 済みの場合、PyTorch 側の `load_tokenizer` はその ONNX tokenizer を返す。
 - unload は cache から削除して garbage collection を行い、model unload 時は利用可能なら CUDA cache も空にする。
 
 ### ONNX Runtime
@@ -367,6 +370,7 @@ server が dispatch できる関数は公開 interface の 5 関数に固定さ�
 - `tests/test_japanese_g2p_snapshot.py`
 - `tests/test_english_g2p.py`
 - `tests/test_chinese_g2p.py`
+- `tests/test_bert_model_defaults.py`
 - `tests/test_bert_tokenizers.py`
 - `tests/test_japanese_bert_feature.py`
 - `tests/test_multilingual_bert_feature.py`
