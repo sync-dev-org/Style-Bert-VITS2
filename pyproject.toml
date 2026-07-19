@@ -65,6 +65,9 @@ Documentation = "https://github.com/sync-dev-org/Style-Bert-VITS2#readme"
 Issues = "https://github.com/sync-dev-org/Style-Bert-VITS2/issues"
 Source = "https://github.com/sync-dev-org/Style-Bert-VITS2"
 
+[project.scripts]
+sbv2-server = "style_bert_vits2.server.cli:main"
+
 [[tool.uv.index]]
 name = "pytorch-cu129"
 url = "https://download.pytorch.org/whl/cu129"
@@ -142,6 +145,11 @@ exclude = [".git", ".gitignore", ".gitattributes"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/style_bert_vits2"]
+
+# Ship the default pyopenjtalk dictionary inside the wheel so the CLI works
+# from a PyPI install (no repository checkout with a dict_data/ directory).
+[tool.hatch.build.targets.wheel.force-include]
+"dict_data/default.csv" = "style_bert_vits2/dict_data/default.csv"
 
 [tool.ruff.lint]
 extend-select = ["I"]
