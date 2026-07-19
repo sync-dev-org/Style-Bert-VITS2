@@ -34,11 +34,15 @@ directory に複数の候補がある場合は、更新時刻が最も新しい�
 
 ## エントリポイント
 
-サーバーは package module として起動する。
+サーバーは package module または install 時に作られる console script から起動する。
 
 ```console
 uv run python -m style_bert_vits2.server
+sbv2-server
 ```
+
+どちらも `style_bert_vits2.server.cli:main` を呼ぶ。console script はリポジトリルートの
+`config.py` に依存せず、wheel を install した環境から実行できる。
 
 ### CLI 引数
 
@@ -46,16 +50,16 @@ uv run python -m style_bert_vits2.server
 |---|---|---|
 | `--host` | `str`、`127.0.0.1` | Uvicorn の bind address |
 | `--port` | `int`、`1927` | Uvicorn の待受 port |
-| `--dir` | path、`config.assets_root` | `TTSModelHolder` が探索する model root |
+| `--dir` | path、`model_assets` | `TTSModelHolder` が探索する model root。相対 path は起動時の current working directory を基準にする |
 | `--device` | `str`、自動 | 指定値を推論 device にする。省略時は CUDA が利用可能なら `cuda`、それ以外は `cpu` |
-| `--language` | `JP` / `EN` / `ZH` | request で `language` を省略した場合の既定言語。既定値は server 設定の言語 |
+| `--language` | `JP` / `EN` / `ZH`、`JP` | request で `language` を省略した場合の既定言語 |
 | `--no-preload-bert` | flag、既定 `False` | 日本語・英語 BERT の起動時 preload を無効にする |
 
 ### 起動シーケンス
 
-1. `config.get_config()` から model root と既定言語を読む。
-2. CLI 引数を解析し、device を解決する。
-3. `pyopenjtalk_worker` を起動し、ユーザー辞書を適用する。
+1. CLI 引数を解析し、device を解決する。
+2. `pyopenjtalk_worker` を起動する。
+3. 既定辞書と書込先を実行環境に応じて解決し、ユーザー辞書を適用する。
 4. `--no-preload-bert` がなければ、日本語・英語それぞれの PyTorch BERT model と
    tokenizer を preload する。
 5. `TTSModelHolder` で model root を探索する。利用可能な model が 0 件なら起動を
@@ -64,6 +68,18 @@ uv run python -m style_bert_vits2.server
 
 音声合成 model の重みは起動時にはロードしない。各 model への最初の合成 request
 で `TTSModel.infer()` が遅延ロードし、以後の request で再利用する。
+
+### ユーザー辞書 path
+
+リポジトリ checkout では `dict_data/` が存在するため、既定 CSV、ユーザー JSON、
+compiled dictionary を従来どおり同 directory から読み書きする。
+
+wheel install 環境では、既定 CSV は package 内の
+`style_bert_vits2/dict_data/default.csv` を使う。ユーザー JSON と compiled dictionary
+は site-packages へ書き込まず、`~/.cache/style-bert-vits2/dict/` に保存する。
+
+リポジトリ側と package 側のどちらにも既定 CSV がなければ warning を記録し、
+辞書更新だけを skip してサーバー起動を続ける。
 
 ## Endpoint 一覧
 
@@ -245,5 +261,6 @@ curl -sS \
 - `tests/test_server_openai_schemas.py`: field の既定値、strict validation、不明 field。
 - `tests/test_server_openai_api.py`: ASGI 経由の endpoint、WAV / PCM、文分割、header、
   model / speaker / style 選択、エラー形。
-- `tests/test_server_openai_cli.py`: runtime 初期化、BERT preload、CLI 値と Uvicorn 起動。
+- `tests/test_server_openai_cli.py`: config 非依存の runtime 初期化、辞書 path 解決、
+  BERT preload、CLI 値と Uvicorn 起動。
 - `tests/test_server_openai_gpu.py`: 明示された実 model による CUDA 推論と WAV 契約。

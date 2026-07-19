@@ -27,9 +27,12 @@ from transformers import (
     __version__ as TRANSFORMERS_VERSION,
 )
 
-from style_bert_vits2.constants import DEFAULT_BERT_MODEL_PATHS, Languages
+from style_bert_vits2.constants import (
+    DEFAULT_BERT_MODEL_IDS,
+    DEFAULT_BERT_MODEL_PATHS,
+    Languages,
+)
 from style_bert_vits2.logging import logger
-from style_bert_vits2.nlp import onnx_bert_models
 
 
 if TYPE_CHECKING:
@@ -56,6 +59,13 @@ def _float32_load_kwargs() -> dict[str, object]:
     return {"torch_dtype": torch.float32}
 
 
+def _resolve_default_model_source(language: Languages) -> str:
+    local_model_path = DEFAULT_BERT_MODEL_PATHS[language]
+    if local_model_path.exists():
+        return str(local_model_path)
+    return DEFAULT_BERT_MODEL_IDS[language]
+
+
 def load_model(
     language: Languages,
     pretrained_model_name_or_path: Optional[str] = None,
@@ -68,7 +78,6 @@ def load_model(
     """
     指定された言語の BERT モデルをロードし、ロード済みの BERT モデルを返す。
     一度ロードされていれば、ロード済みの BERT モデルを即座に返す。
-    ライブラリ利用時は常に必ず pretrain_model_name_or_path (Hugging Face のリポジトリ名 or ローカルのファイルパス) を指定する必要がある。
     ロードにはそれなりに時間がかかるため、ライブラリ利用前に明示的に pretrained_model_name_or_path を指定してロードしておくべき。
     device_map は既に指定された言語の BERT モデルがロードされている場合は効果がない。
     cache_dir と revision は pretrain_model_name_or_path がリポジトリ名の場合のみ有効。
@@ -96,11 +105,9 @@ def load_model(
     if language in __loaded_models:
         return __loaded_models[language]
 
-    # pretrained_model_name_or_path が指定されていない場合はデフォルトのパスを利用
+    # ローカルのデフォルトモデルがなければ Hugging Face のモデル ID を利用
     if pretrained_model_name_or_path is None:
-        assert DEFAULT_BERT_MODEL_PATHS[language].exists(), \
-            f"The default {language.name} BERT model does not exist on the file system. Please specify the path to the pre-trained model."  # fmt: skip
-        pretrained_model_name_or_path = str(DEFAULT_BERT_MODEL_PATHS[language])
+        pretrained_model_name_or_path = _resolve_default_model_source(language)
 
     # BERT モデルをロードし、辞書に格納して返す
     ## 英語のみ DebertaV2Model でロードする必要がある
@@ -140,7 +147,6 @@ def load_tokenizer(
     """
     指定された言語の BERT トークナイザーをロードし、ロード済みの BERT トークナイザーを返す。
     一度ロードされていれば、ロード済みの BERT トークナイザーを即座に返す。
-    ライブラリ利用時は常に必ず pretrain_model_name_or_path (Hugging Face のリポジトリ名 or ローカルのファイルパス) を指定する必要がある。
     ロードにはそれなりに時間がかかるため、ライブラリ利用前に明示的に pretrained_model_name_or_path を指定してロードしておくべき。
     cache_dir と revision は pretrain_model_name_or_path がリポジトリ名の場合のみ有効。
 
@@ -164,16 +170,9 @@ def load_tokenizer(
     if language in __loaded_tokenizers:
         return __loaded_tokenizers[language]
 
-    # pretrained_model_name_or_path が指定されていない場合はデフォルトのパスを利用
+    # ローカルのデフォルトモデルがなければ Hugging Face のモデル ID を利用
     if pretrained_model_name_or_path is None:
-        # ライブラリ利用時、特例的にこの状況で ONNX 版 BERT トークナイザーがロードされている場合はそのまま返す
-        ## ONNX 版 BERT トークナイザー単独で g2p 処理を行うために必要 (各言語の g2p.py はこの関数に依存している)
-        ## 設計的には微妙だがこの方が差異を吸収できて手っ取り早い
-        if DEFAULT_BERT_MODEL_PATHS[language].exists() is False and onnx_bert_models.is_tokenizer_loaded(language):  # fmt: skip
-            return onnx_bert_models.load_tokenizer(language)
-        assert DEFAULT_BERT_MODEL_PATHS[language].exists(), \
-            f"The default {language.name} BERT tokenizer does not exist on the file system. Please specify the path to the pre-trained model."  # fmt: skip
-        pretrained_model_name_or_path = str(DEFAULT_BERT_MODEL_PATHS[language])
+        pretrained_model_name_or_path = _resolve_default_model_source(language)
 
     # BERT トークナイザーをロードし、辞書に格納して返す
     ## 英語のみ DebertaV2TokenizerFast でロードする必要がある
