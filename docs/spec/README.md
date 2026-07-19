@@ -21,11 +21,12 @@
 ```text
 .bat / Python entrypoints
         |
-        +-- app.py / gradio_tabs/ --------+
-        +-- server_fastapi.py ------------+--> style_bert_vits2.tts_model
-        +-- server_editor.py -------------+             |
-        |                                               +--> nlp/ --> bert/
-        |                                               +--> models/ --> torch / ONNX Runtime
+        +-- app.py / gradio_tabs/ ---------+
+        +-- server_fastapi.py -------------+
+        +-- style_bert_vits2.server --------+--> style_bert_vits2.tts_model
+        +-- server_editor.py --------------+             |
+        |                                                +--> nlp/ --> bert/
+        |                                                +--> models/ --> torch / ONNX Runtime
         |
         +-- dataset / preprocess / train
                     |
@@ -215,6 +216,7 @@ model_assets/
 - [core-inference.md](core-inference.md): `TTSModel` / `TTSModelHolder`、モデルロード、PyTorch / ONNX 音声合成の仕様。
 - [nlp.md](nlp.md): 正規化、g2p、BERT 特徴抽出、日本語辞書と pyopenjtalk worker の仕様。
 - [api-server.md](api-server.md): `server_fastapi.py` の設定、endpoint、入出力、モデル更新の仕様。
+- [openai-api-server.md](openai-api-server.md): package module で起動する OpenAI 互換音声合成 API、buffered WAV、文単位 PCM streaming の仕様。
 - [editor-server.md](editor-server.md): `server_editor.py` の editor server、文書・音声生成操作の仕様。
 - [webui.md](webui.md): `app.py` と `gradio_tabs/` の画面構成、単独タブ、操作フローの仕様。
 - [training-pipeline.md](training-pipeline.md): データセット作成、前処理、特徴生成、通常版 / JP-Extra 学習の仕様。
@@ -233,6 +235,7 @@ model_assets/
 - `tests/test_tts_model_holder.py`: `model_assets/` の列挙、refresh、ONNX 除外、モデル選択。
 - `tests/test_main.py`: 公開 package を通した音声合成の統合挙動。
 - `tests/test_server_fastapi_config.py`: FastAPI server 設定と CLI port の優先順位。
+- `tests/test_server_openai_api.py`: OpenAI 互換 endpoint、WAV / PCM、streaming header、validation。
 - `tests/test_onnx_export_restoration.py`: 音声・BERT ONNX export 経路と変換 UI の整合性。
 - `tests/test_training_device.py`: 学習 device と CPU / CUDA 切替。
 - `tests/test_train_torch_modernization.py`: 学習処理と既存 checkpoint の互換性。
