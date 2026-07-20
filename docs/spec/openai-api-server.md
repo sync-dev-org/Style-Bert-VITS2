@@ -4,11 +4,10 @@
 
 この文書は `style_bert_vits2.server` が提供する OpenAI 互換の音声合成 API
 サーバーを対象とする。モデルの探索と推論そのものは
-[core-inference.md](core-inference.md)、従来の query parameter ベース API は
-[api-server.md](api-server.md) を参照する。
+[core-inference.md](core-inference.md) を参照する。
 
-このサーバーは従来の `server_fastapi.py` と並存し、既存の `/voice` endpoint は
-公開しない。
+このサーバーは本 fork が提供する唯一の API サーバーであり、OpenAI 互換の
+`/v1/audio/speech` endpoint を公開する。
 
 ## セットアップとモデル配置
 

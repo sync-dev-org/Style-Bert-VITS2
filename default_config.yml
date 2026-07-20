@@ -58,12 +58,3 @@ webui:  # For `webui.py`, which is not supported yet in Style-Bert-VITS2.
   debug: false
   # 语种识别库，可选langid, fastlid
   language_identification_library: "langid"
-
-# server_fastapi's config
-server:
-  port: 5100
-  device: "cuda"
-  language: "JP"
-  limit: 100
-  origins:
-    - "*"

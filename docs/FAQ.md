@@ -34,9 +34,10 @@ winget install ffmpeg
 
 ## APIサーバーで長い文章が合成できない
 
-デフォルトで`server_fastapi.py`の入力文字上限は100文字に設定されています。
-`config.yml`の`server.limit`の100を好きな数字に変更してください。
-上限をなくしたい方は`server.limit`を-1に設定してください。
+現行の OpenAI 互換 API サーバーは固定の入力文字数上限を設けていません。
+長い文章を文単位で順次合成する場合は、`POST /v1/audio/speech` に
+`"stream": true` と `"response_format": "pcm"` を指定してください。
+request field と出力形式の組合せは [OpenAI 互換音声合成サーバー仕様](spec/openai-api-server.md) を参照してください。
 
 ## 学習を中断・再開するには
 

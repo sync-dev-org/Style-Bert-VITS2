@@ -27,7 +27,7 @@ Bert-VITS2 を基に、感情や発話スタイルの強さを連続的に制御
 - 音声 dataset の作成、文字起こし、前処理、学習
 - 学習済みモデルと style vector の merge
 - safetensors model の ONNX 変換
-- FastAPI 音声合成 server
+- OpenAI 互換 FastAPI 音声合成 server
 - Python API による推論
 
 既存の `model_assets/` 形式にある学習済み model の読み込み互換を維持しています。
@@ -87,9 +87,9 @@ Repository checkout を初期化した後、目的に応じて次の command を
 |---|---|
 | 音声合成 editor | `uv run python server_editor.py --inbrowser` |
 | Gradio WebUI | `uv run python app.py` |
-| FastAPI server | `uv run python server_fastapi.py` |
+| OpenAI 互換 API server | `uv run sbv2-server` |
 
-FastAPI の endpoint 仕様は server 起動後の `/docs` で確認できます。CLI で dataset 作成、前処理、学習を行う場合は [CLI guide][cli]を参照し、環境構築には本 README の手順を使用してください。
+API server を使う場合は `uv sync --extra server --extra torch` で依存を導入してください。endpoint と起動引数の仕様は [OpenAI 互換音声合成サーバー仕様](docs/spec/openai-api-server.md)、対話形式の API 定義は server 起動後の `/docs` で確認できます。CLI で dataset 作成、前処理、学習を行う場合は [CLI guide][cli]を参照し、環境構築には本 README の手順を使用してください。
 
 WebUI には音声合成、dataset 作成、学習、style 作成、merge、ONNX 変換の各画面があります。
 

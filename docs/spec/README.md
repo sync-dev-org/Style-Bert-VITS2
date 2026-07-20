@@ -22,7 +22,6 @@
 .bat / Python entrypoints
         |
         +-- app.py / gradio_tabs/ ---------+
-        +-- server_fastapi.py -------------+
         +-- style_bert_vits2.server --------+--> style_bert_vits2.tts_model
         +-- server_editor.py --------------+             |
         |                                                +--> nlp/ --> bert/
@@ -80,7 +79,7 @@ inputs/ --> Data/<model>/ --> model_assets/<model>/ --> inference
 | `src/style_bert_vits2/` | install されるコア Python package |
 | `tests/` | 推論、NLP、サーバー設定、ONNX 変換、学習 device・互換性の自動テスト |
 
-ルート直下の Python ファイルは実行入口と学習パイプラインの調整層である。`app.py`、`server_fastapi.py`、`server_editor.py` は利用者向けサービスを起動し、`slice.py` から `train_ms*.py` までのスクリプトがデータ準備・学習を行う。`convert_onnx.py`、`default_style.py`、`style_gen.py` などはモデル資産を生成・変換する。`data_utils.py`、`mel_processing.py`、`losses.py` は学習処理から利用される。
+ルート直下の Python ファイルは実行入口と学習パイプラインの調整層である。`app.py` と `server_editor.py` は利用者向けサービスを起動し、OpenAI 互換 API サーバーは install される `style_bert_vits2.server` package が提供する。`slice.py` から `train_ms*.py` までのスクリプトがデータ準備・学習を行う。`convert_onnx.py`、`default_style.py`、`style_gen.py` などはモデル資産を生成・変換する。`data_utils.py`、`mel_processing.py`、`losses.py` は学習処理から利用される。
 
 ## Windows エントリポイント
 
@@ -89,7 +88,6 @@ inputs/ --> Data/<model>/ --> model_assets/<model>/ --> inference
 | `.bat` | Python エントリ | 役割 |
 | --- | --- | --- |
 | `App.bat` | `app.py` | 全 Gradio タブをまとめた WebUI |
-| `Server.bat` | `server_fastapi.py` | FastAPI 音声合成サーバー |
 | `Editor.bat` | `server_editor.py --inbrowser` | 音声合成エディター |
 | `Train.bat` | `python -m gradio_tabs.train` | 学習タブ単独 UI |
 | `Dataset.bat` | `python -m gradio_tabs.dataset` | データセット作成タブ単独 UI |
@@ -139,9 +137,9 @@ inputs/ --> Data/<model>/ --> model_assets/<model>/ --> inference
 
 ### 実行調整用 `config.yml`
 
-`default_config.yml` は、対象 `model_name`、resample、テキスト前処理、BERT / style 特徴生成、学習、現在サポート対象外の WebUI 設定、FastAPI server の既定値を持つ。実行時に使うルートの `config.yml` がなければ、`config.Config` または学習 UI の初期化処理が `default_config.yml` から生成する。
+`default_config.yml` は、対象 `model_name`、resample、テキスト前処理、BERT / style 特徴生成、学習、現在サポート対象外の WebUI 設定を持つ。実行時に使うルートの `config.yml` がなければ、`config.Config` または学習 UI の初期化処理が `default_config.yml` から生成する。
 
-`config.py` は `configs/paths.yml` と `config.yml` を読み、相対パスを対象 dataset directory に結合した設定オブジェクトを作る。CUDA が利用できない場合、BERT、style、WebUI、server の device は CPU に補正される。`config.yml` が必須キー不足で読めない場合は、既定ファイルで置き換えて再読込する。
+`config.py` は `configs/paths.yml` と `config.yml` を読み、相対パスを対象 dataset directory に結合した設定オブジェクトを作る。CUDA が利用できない場合、BERT、style、WebUI の device は CPU に補正される。`config.yml` が必須キー不足で読めない場合は、既定ファイルで置き換えて再読込する。
 
 ### モデル別 `config.json`
 
@@ -209,13 +207,12 @@ model_assets/
 - `config.yml` とモデル別 `config.json` は別の設定である。前者はパイプライン実行とパス解決、後者はモデル構造・学習データ・推論メタデータを担う。
 - `model_assets/<model_name>/` ではモデルファイル名を固定しない。同じ directory に複数世代や PyTorch / ONNX 形式を置ける。
 - BERT と音声合成モデルは別の資産として配置される。`TTSModel` の PyTorch 推論経路は PyTorch BERT、ONNX 推論経路は ONNX BERT を使用する。
-- `app.py`、server、単独タブは同じ package と資産形式を共有するが、公開する操作・API と ONNX の列挙可否は各入口の設定に従う。
+- `app.py`、OpenAI 互換 API サーバー、単独タブは同じ package と資産形式を共有するが、公開する操作・API と ONNX の列挙可否は各入口の設定に従う。
 
 ## 詳細仕様の索引
 
 - [core-inference.md](core-inference.md): `TTSModel` / `TTSModelHolder`、モデルロード、PyTorch / ONNX 音声合成の仕様。
 - [nlp.md](nlp.md): 正規化、g2p、BERT 特徴抽出、日本語辞書と pyopenjtalk worker の仕様。
-- [api-server.md](api-server.md): `server_fastapi.py` の設定、endpoint、入出力、モデル更新の仕様。
 - [openai-api-server.md](openai-api-server.md): package module で起動する OpenAI 互換音声合成 API、buffered WAV、文単位 PCM streaming の仕様。
 - [editor-server.md](editor-server.md): `server_editor.py` の editor server、文書・音声生成操作の仕様。
 - [webui.md](webui.md): `app.py` と `gradio_tabs/` の画面構成、単独タブ、操作フローの仕様。
@@ -234,7 +231,6 @@ model_assets/
 
 - `tests/test_tts_model_holder.py`: `model_assets/` の列挙、refresh、ONNX 除外、モデル選択。
 - `tests/test_main.py`: 公開 package を通した音声合成の統合挙動。
-- `tests/test_server_fastapi_config.py`: FastAPI server 設定と CLI port の優先順位。
 - `tests/test_server_openai_api.py`: OpenAI 互換 endpoint、WAV / PCM、streaming header、validation。
 - `tests/test_onnx_export_restoration.py`: 音声・BERT ONNX export 経路と変換 UI の整合性。
 - `tests/test_training_device.py`: 学習 device と CPU / CUDA 切替。
