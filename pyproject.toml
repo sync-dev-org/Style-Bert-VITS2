@@ -118,14 +118,12 @@ train = [
 webui = [
     { include-group = "train" },
     "faster-whisper>=1.0",
-    "gputil",
     "gradio>=4.32,<6",
     "onnx",
     "onnxconverter-common",
     "onnxruntime-directml>=1.24,<1.25; sys_platform == 'win32'",
     "onnxruntime-gpu>=1.24,<1.25; sys_platform != 'darwin'",
     "onnxsim-prebuilt",
-    "psutil",
     "pyloudnorm",
     "umap-learn",
 ]

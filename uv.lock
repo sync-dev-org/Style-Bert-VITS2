@@ -1443,12 +1443,6 @@ wheels = [
 ]
 
 [[package]]
-name = "gputil"
-version = "1.4.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ed/0e/5c61eedde9f6c87713e89d794f01e378cfd9565847d4576fa627d758c554/GPUtil-1.4.0.tar.gz", hash = "sha256:099e52c65e512cdfa8c8763fca67f5a5c2afb63469602d5dcb4d296b3661efb9", size = 5545, upload-time = "2018-12-18T09:12:13.63Z" }
-
-[[package]]
 name = "gradio"
 version = "5.50.0"
 source = { registry = "https://pypi.org/simple" }
@@ -5295,7 +5289,6 @@ train = [
 ]
 webui = [
     { name = "faster-whisper" },
-    { name = "gputil" },
     { name = "gradio" },
     { name = "librosa" },
     { name = "onnx" },
@@ -5304,7 +5297,6 @@ webui = [
     { name = "onnxruntime-directml", version = "1.24.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11' and sys_platform == 'win32'" },
     { name = "onnxruntime-gpu", marker = "sys_platform != 'darwin'" },
     { name = "onnxsim-prebuilt" },
-    { name = "psutil" },
     { name = "pyannote-audio" },
     { name = "pyloudnorm" },
     { name = "soundfile" },
@@ -5361,7 +5353,6 @@ train = [
 ]
 webui = [
     { name = "faster-whisper", specifier = ">=1.0" },
-    { name = "gputil" },
     { name = "gradio", specifier = ">=4.32,<6" },
     { name = "librosa", specifier = ">=0.11" },
     { name = "onnx" },
@@ -5369,7 +5360,6 @@ webui = [
     { name = "onnxruntime-directml", marker = "sys_platform == 'win32'", specifier = ">=1.24,<1.25" },
     { name = "onnxruntime-gpu", marker = "sys_platform != 'darwin'", specifier = ">=1.24,<1.25" },
     { name = "onnxsim-prebuilt" },
-    { name = "psutil" },
     { name = "pyannote-audio", specifier = ">=4" },
     { name = "pyloudnorm" },
     { name = "soundfile", specifier = ">=0.14" },
