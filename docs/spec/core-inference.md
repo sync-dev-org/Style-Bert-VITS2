@@ -342,8 +342,8 @@ model load / unload、推論開始・完了、null model 加算、checkpoint key
   - PyTorch CPU / CUDA と ONNX CPU / CUDA / DirectML / CoreML の合成経路
   - 返却 sample rate、非空・非無音の波形、WAV round trip
   - ONNX の実 provider 選択
-- `tests/test_server_fastapi_api.py`
-  - API 層から `TTSModelHolder` を利用する際の adapter 境界
+- `tests/test_server_openai_api.py`
+  - API 層から model cache と `TTSModel.infer()` を利用する際の adapter 境界
 - `tests/test_tts_model_line_split.py`
   - 改行分割時の行間無音長が config の `data.sampling_rate` に従うこと (PyTorch / ONNX 両経路)
 - `tests/test_tts_model_edge_inputs.py`

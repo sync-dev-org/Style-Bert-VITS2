@@ -193,28 +193,6 @@ class Webui_config:
         return cls(**data)
 
 
-class Server_config:
-    def __init__(
-        self,
-        port: int = 5100,
-        device: str = "cuda",
-        limit: int = 100,
-        language: str = "JP",
-        origins: list[str] = ["*"],
-    ):
-        self.port: int = port
-        if not cuda_available:
-            device = "cpu"
-        self.device: str = device
-        self.language: str = language
-        self.limit: int = limit
-        self.origins: list[str] = origins
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]):
-        return cls(**data)
-
-
 class Translate_config:
     """翻译api配置"""
 
@@ -269,9 +247,6 @@ class Config:
             )
             self.webui_config: Webui_config = Webui_config.from_dict(
                 dataset_path, yaml_config["webui"]
-            )
-            self.server_config: Server_config = Server_config.from_dict(
-                yaml_config["server"]
             )
             # self.translate_config: Translate_config = Translate_config.from_dict(
             #     yaml_config["translate"]
